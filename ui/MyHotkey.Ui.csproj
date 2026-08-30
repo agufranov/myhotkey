@@ -22,6 +22,7 @@
     <CodePage>65001</CodePage>
     <WarningLevel>4</WarningLevel>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ApplicationIcon>..\assets\myhotkey.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

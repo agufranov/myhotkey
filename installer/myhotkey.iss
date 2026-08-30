@@ -33,6 +33,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#UiExe}
+SetupIconFile=..\assets\myhotkey.ico
 WizardStyle=modern
 ; The whole product is a couple of hundred kilobytes; say so, because nobody
 ; expects that from a tool in this category.

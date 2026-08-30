@@ -49,7 +49,12 @@ static void tray_add(void) {
     g_nid.uID              = 1;
     g_nid.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     g_nid.uCallbackMessage = MH_WM_TRAY;
-    g_nid.hIcon            = LoadIconW(NULL, IDI_APPLICATION);
+    /* Ask for the small-icon size explicitly: the tray renders at 16-20 px,
+       and letting Windows shrink the 32 px frame instead turns it to mush. */
+    g_nid.hIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(1),
+                                    IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+                                    GetSystemMetrics(SM_CYSMICON), 0);
+    if (!g_nid.hIcon) g_nid.hIcon = LoadIconW(NULL, IDI_APPLICATION);
     wcscpy(g_nid.szTip, MH_APP_NAME);
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 }

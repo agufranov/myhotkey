@@ -1,0 +1,3 @@
+/* Icon id 1: the first icon in the file is what Explorer shows for the exe,
+   and main.c loads it by this number for the tray. */
+1 ICON "../assets/myhotkey.ico"

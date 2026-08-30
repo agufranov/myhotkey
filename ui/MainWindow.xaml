@@ -1,0 +1,67 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MyHotkey.MainWindow"
+        Title="MyHotkey" Width="880" Height="560" MinWidth="680" MinHeight="380"
+        Background="{StaticResource Bg}"
+        WindowStartupLocation="CenterScreen">
+
+  <Grid Margin="18">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- header -->
+    <Grid Grid.Row="0" Margin="0,0,0,14">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Text="Сочетания клавиш" FontSize="19" FontWeight="SemiBold"/>
+        <Border x:Name="StatusPill" CornerRadius="10" Padding="9,3" Margin="12,2,0,0"
+                Background="{StaticResource AccentBg}" VerticalAlignment="Center">
+          <TextBlock x:Name="StatusText" Text="соединение…" FontSize="11"
+                     Foreground="{StaticResource Accent}"/>
+        </Border>
+      </StackPanel>
+      <CheckBox x:Name="MasterToggle" Content="Перехват включён"
+                HorizontalAlignment="Right" VerticalAlignment="Center"
+                Checked="MasterToggle_Changed" Unchecked="MasterToggle_Changed"/>
+    </Grid>
+
+    <!-- toolbar -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+      <Button x:Name="AddBtn"  Content="Добавить"   Style="{StaticResource BtnPrimary}" Click="Add_Click"/>
+      <Button x:Name="EditBtn" Content="Изменить"   Style="{StaticResource Btn}" Click="Edit_Click"/>
+      <Button x:Name="DupBtn"  Content="Дублировать" Style="{StaticResource Btn}" Click="Duplicate_Click"/>
+      <Button x:Name="DelBtn"  Content="Удалить"    Style="{StaticResource Btn}" Click="Delete_Click"/>
+    </StackPanel>
+
+    <!-- rules -->
+    <DataGrid Grid.Row="2" x:Name="Grid" AutoGenerateColumns="False" CanUserAddRows="False"
+              CanUserResizeRows="False" SelectionMode="Single" IsReadOnly="False"
+              MouseDoubleClick="Grid_DoubleClick">
+      <DataGrid.Columns>
+        <DataGridCheckBoxColumn Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}"
+                                Width="42" Header=""/>
+        <DataGridTextColumn Header="Сочетание" Binding="{Binding Trigger}" Width="180" IsReadOnly="True">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="FontFamily" Value="Consolas"/>
+              <Setter Property="FontSize" Value="13"/>
+              <Setter Property="VerticalAlignment" Value="Center"/>
+              <Setter Property="Margin" Value="10,0,0,0"/>
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
+        <DataGridTextColumn Header="Действие" Binding="{Binding ActionSummary}" Width="*" IsReadOnly="True"/>
+        <DataGridTextColumn Header="Когда" Binding="{Binding WhenText}" Width="120" IsReadOnly="True"/>
+        <DataGridTextColumn Header="Где" Binding="{Binding ScopeText}" Width="150" IsReadOnly="True"/>
+        <DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="180" IsReadOnly="True"/>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <!-- footer -->
+    <TextBlock Grid.Row="3" x:Name="Hint" Style="{StaticResource Caption}" Margin="2,10,0,0"
+               Text="Изменения применяются сразу — движок перечитывает настройки сам."/>
+  </Grid>
+</Window>

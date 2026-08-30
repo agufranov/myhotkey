@@ -1,0 +1,152 @@
+<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MyHotkey.App"
+             StartupUri="MainWindow.xaml">
+  <Application.Resources>
+
+    <!-- Palette. Deliberately quiet: this is a settings window that people
+         open, change one thing in, and close. -->
+    <Color x:Key="AccentColor">#2563EB</Color>
+    <SolidColorBrush x:Key="Bg"       Color="#F5F6F8"/>
+    <SolidColorBrush x:Key="Surface"  Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="Border"   Color="#E1E4E9"/>
+    <SolidColorBrush x:Key="Text"     Color="#16191D"/>
+    <SolidColorBrush x:Key="Muted"    Color="#6B7280"/>
+    <SolidColorBrush x:Key="Accent"   Color="#2563EB"/>
+    <SolidColorBrush x:Key="AccentBg" Color="#EFF4FF"/>
+    <SolidColorBrush x:Key="Danger"   Color="#DC2626"/>
+    <SolidColorBrush x:Key="Ok"       Color="#16A34A"/>
+
+    <FontFamily x:Key="Ui">Segoe UI</FontFamily>
+
+    <Style TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <Style x:Key="Caption" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <!-- Buttons -->
+    <Style x:Key="Btn" TargetType="Button">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Padding" Value="14,7"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" CornerRadius="6" Background="{StaticResource Surface}"
+                    BorderBrush="{StaticResource Border}" BorderThickness="1">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center"
+                                Margin="{TemplateBinding Padding}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#F0F2F5"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="BtnPrimary" TargetType="Button" BasedOn="{StaticResource Btn}">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" CornerRadius="6" Background="{StaticResource Accent}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="Center"
+                                Margin="{TemplateBinding Padding}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#1D4FD8"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Inputs -->
+    <Style TargetType="TextBox">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+      <Setter Property="Background" Value="{StaticResource Surface}"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style TargetType="ComboBox">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Padding" Value="6,5"/>
+    </Style>
+
+    <Style TargetType="RadioButton">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="Margin" Value="0,0,16,0"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style TargetType="CheckBox">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Rule list -->
+    <Style TargetType="DataGrid">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Background" Value="{StaticResource Surface}"/>
+      <Setter Property="RowBackground" Value="{StaticResource Surface}"/>
+      <Setter Property="AlternatingRowBackground" Value="#FBFCFD"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="GridLinesVisibility" Value="None"/>
+      <Setter Property="RowHeight" Value="34"/>
+      <Setter Property="HeadersVisibility" Value="Column"/>
+    </Style>
+
+    <Style TargetType="DataGridColumnHeader"
+           xmlns:p="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
+      <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="Background" Value="#FAFBFC"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,1"/>
+      <Setter Property="Padding" Value="10,7"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    </Style>
+
+  </Application.Resources>
+</Application>

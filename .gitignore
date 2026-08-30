@@ -5,3 +5,6 @@ build/
 *.ilk
 *.exp
 *.lib
+obj/
+*.dll
+*.pdb

@@ -1,56 +1,76 @@
-/* Key-name table. Shared vocabulary between config.json, the UI and the hook. */
+/* Key names and chord parsing. Shared vocabulary between config.json, the UI
+   and the hook.
+
+   Two things make this less trivial than a lookup table. A modifier can be
+   either part of a chord ("Alt+S") or the trigger itself ("RAlt"), and the
+   difference is positional, not lexical. And a modifier name carries a side:
+   "Ctrl" means either one, "LCtrl" means that specific key. */
 #include "common.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-typedef struct { const char *name; UINT vk; } KeyName;
+static const MhModGroup g_groups[MH_GROUP_COUNT] = {
+    { MH_MOD_CTRL,  MH_HELD_LCTRL,  MH_HELD_RCTRL,  VK_LCONTROL, VK_RCONTROL, "Ctrl"  },
+    { MH_MOD_ALT,   MH_HELD_LALT,   MH_HELD_RALT,   VK_LMENU,    VK_RMENU,    "Alt"   },
+    { MH_MOD_SHIFT, MH_HELD_LSHIFT, MH_HELD_RSHIFT, VK_LSHIFT,   VK_RSHIFT,   "Shift" },
+    { MH_MOD_WIN,   MH_HELD_LWIN,   MH_HELD_RWIN,   VK_LWIN,     VK_RWIN,     "Win"   }
+};
 
-/* First entry for a VK is the canonical name used when formatting back to text.
-   Later duplicates are accepted aliases. */
+const MhModGroup *mh_mod_groups(void) { return g_groups; }
+
+/* The side lives in the table rather than being derived from the VK, because
+   "Win" and "LWin" have to resolve to the same VK yet mean different things. */
+typedef struct { const char *name; UINT vk; int side; } KeyName;
+
+/* The first entry for a VK is the canonical name used when formatting back to
+   text. Later entries are accepted aliases. */
 static const KeyName g_keys[] = {
-    /* modifiers - usable both as a mask and as a standalone trigger key */
-    {"Ctrl",VK_CONTROL},{"Control",VK_CONTROL},
-    {"Alt",VK_MENU},{"Menu",VK_MENU},
-    {"Shift",VK_SHIFT},
-    {"LCtrl",VK_LCONTROL},{"RCtrl",VK_RCONTROL},
-    {"LAlt",VK_LMENU},{"RAlt",VK_RMENU},
-    {"LShift",VK_LSHIFT},{"RShift",VK_RSHIFT},
-    {"Win",VK_LWIN},{"LWin",VK_LWIN},{"RWin",VK_RWIN},
+    {"Ctrl",VK_CONTROL,MH_SIDE_ANY},   {"Control",VK_CONTROL,MH_SIDE_ANY},
+    {"Alt",VK_MENU,MH_SIDE_ANY},       {"Menu",VK_MENU,MH_SIDE_ANY},
+    {"Shift",VK_SHIFT,MH_SIDE_ANY},
+    {"Win",VK_LWIN,MH_SIDE_ANY},
+    {"LCtrl",VK_LCONTROL,MH_SIDE_LEFT},   {"RCtrl",VK_RCONTROL,MH_SIDE_RIGHT},
+    {"LAlt",VK_LMENU,MH_SIDE_LEFT},       {"RAlt",VK_RMENU,MH_SIDE_RIGHT},
+    {"LShift",VK_LSHIFT,MH_SIDE_LEFT},    {"RShift",VK_RSHIFT,MH_SIDE_RIGHT},
+    {"LWin",VK_LWIN,MH_SIDE_LEFT},        {"RWin",VK_RWIN,MH_SIDE_RIGHT},
 
-    {"CapsLock",VK_CAPITAL},{"Caps",VK_CAPITAL},
-    {"NumLock",VK_NUMLOCK},{"ScrollLock",VK_SCROLL},
-    {"Tab",VK_TAB},{"Enter",VK_RETURN},{"Return",VK_RETURN},
-    {"Esc",VK_ESCAPE},{"Escape",VK_ESCAPE},
-    {"Space",VK_SPACE},{"Backspace",VK_BACK},{"BS",VK_BACK},
-    {"Delete",VK_DELETE},{"Del",VK_DELETE},{"Insert",VK_INSERT},{"Ins",VK_INSERT},
-    {"Home",VK_HOME},{"End",VK_END},
-    {"PageUp",VK_PRIOR},{"PgUp",VK_PRIOR},{"PageDown",VK_NEXT},{"PgDn",VK_NEXT},
-    {"Left",VK_LEFT},{"Right",VK_RIGHT},{"Up",VK_UP},{"Down",VK_DOWN},
-    {"PrintScreen",VK_SNAPSHOT},{"Pause",VK_PAUSE},{"Apps",VK_APPS},
+    {"CapsLock",VK_CAPITAL,0},{"Caps",VK_CAPITAL,0},
+    {"NumLock",VK_NUMLOCK,0},{"ScrollLock",VK_SCROLL,0},
+    {"Tab",VK_TAB,0},{"Enter",VK_RETURN,0},{"Return",VK_RETURN,0},
+    {"Esc",VK_ESCAPE,0},{"Escape",VK_ESCAPE,0},
+    {"Space",VK_SPACE,0},{"Backspace",VK_BACK,0},{"BS",VK_BACK,0},
+    {"Delete",VK_DELETE,0},{"Del",VK_DELETE,0},
+    {"Insert",VK_INSERT,0},{"Ins",VK_INSERT,0},
+    {"Home",VK_HOME,0},{"End",VK_END,0},
+    {"PageUp",VK_PRIOR,0},{"PgUp",VK_PRIOR,0},
+    {"PageDown",VK_NEXT,0},{"PgDn",VK_NEXT,0},
+    {"Left",VK_LEFT,0},{"Right",VK_RIGHT,0},{"Up",VK_UP,0},{"Down",VK_DOWN,0},
+    {"PrintScreen",VK_SNAPSHOT,0},{"Pause",VK_PAUSE,0},{"Apps",VK_APPS,0},
 
     /* punctuation - names, not glyphs, so '+' never collides with the separator */
-    {"Minus",VK_OEM_MINUS},{"Equals",VK_OEM_PLUS},
-    {"LBracket",VK_OEM_4},{"RBracket",VK_OEM_6},{"Backslash",VK_OEM_5},
-    {"Semicolon",VK_OEM_1},{"Quote",VK_OEM_7},{"Backtick",VK_OEM_3},
-    {"Comma",VK_OEM_COMMA},{"Period",VK_OEM_PERIOD},{"Slash",VK_OEM_2},
+    {"Minus",VK_OEM_MINUS,0},{"Equals",VK_OEM_PLUS,0},
+    {"LBracket",VK_OEM_4,0},{"RBracket",VK_OEM_6,0},{"Backslash",VK_OEM_5,0},
+    {"Semicolon",VK_OEM_1,0},{"Quote",VK_OEM_7,0},{"Backtick",VK_OEM_3,0},
+    {"Comma",VK_OEM_COMMA,0},{"Period",VK_OEM_PERIOD,0},{"Slash",VK_OEM_2,0},
 
-    /* numpad */
-    {"Numpad0",VK_NUMPAD0},{"Numpad1",VK_NUMPAD1},{"Numpad2",VK_NUMPAD2},
-    {"Numpad3",VK_NUMPAD3},{"Numpad4",VK_NUMPAD4},{"Numpad5",VK_NUMPAD5},
-    {"Numpad6",VK_NUMPAD6},{"Numpad7",VK_NUMPAD7},{"Numpad8",VK_NUMPAD8},
-    {"Numpad9",VK_NUMPAD9},
-    {"NumpadMultiply",VK_MULTIPLY},{"NumpadAdd",VK_ADD},
-    {"NumpadSubtract",VK_SUBTRACT},{"NumpadDecimal",VK_DECIMAL},
-    {"NumpadDivide",VK_DIVIDE},
+    {"Numpad0",VK_NUMPAD0,0},{"Numpad1",VK_NUMPAD1,0},{"Numpad2",VK_NUMPAD2,0},
+    {"Numpad3",VK_NUMPAD3,0},{"Numpad4",VK_NUMPAD4,0},{"Numpad5",VK_NUMPAD5,0},
+    {"Numpad6",VK_NUMPAD6,0},{"Numpad7",VK_NUMPAD7,0},{"Numpad8",VK_NUMPAD8,0},
+    {"Numpad9",VK_NUMPAD9,0},
+    {"NumpadMultiply",VK_MULTIPLY,0},{"NumpadAdd",VK_ADD,0},
+    {"NumpadSubtract",VK_SUBTRACT,0},{"NumpadDecimal",VK_DECIMAL,0},
+    {"NumpadDivide",VK_DIVIDE,0},
 
-    /* media / browser */
-    {"VolumeUp",VK_VOLUME_UP},{"VolumeDown",VK_VOLUME_DOWN},{"VolumeMute",VK_VOLUME_MUTE},
-    {"MediaNext",VK_MEDIA_NEXT_TRACK},{"MediaPrev",VK_MEDIA_PREV_TRACK},
-    {"MediaStop",VK_MEDIA_STOP},{"MediaPlayPause",VK_MEDIA_PLAY_PAUSE},
-    {"BrowserBack",VK_BROWSER_BACK},{"BrowserForward",VK_BROWSER_FORWARD},
+    {"VolumeUp",VK_VOLUME_UP,0},{"VolumeDown",VK_VOLUME_DOWN,0},
+    {"VolumeMute",VK_VOLUME_MUTE,0},
+    {"MediaNext",VK_MEDIA_NEXT_TRACK,0},{"MediaPrev",VK_MEDIA_PREV_TRACK,0},
+    {"MediaStop",VK_MEDIA_STOP,0},{"MediaPlayPause",VK_MEDIA_PLAY_PAUSE,0},
+    {"BrowserBack",VK_BROWSER_BACK,0},{"BrowserForward",VK_BROWSER_FORWARD,0}
 };
+
+#define KEY_COUNT (sizeof(g_keys) / sizeof(g_keys[0]))
 
 static int ieq(const char *a, const char *b) {
     for (; *a && *b; a++, b++)
@@ -58,24 +78,37 @@ static int ieq(const char *a, const char *b) {
     return *a == *b;
 }
 
-UINT mh_vk_from_name(const char *name) {
+/* Resolve a single token. Returns 0 if the name is unknown. */
+static int lookup(const char *name, UINT *vk, int *side) {
     size_t i, n;
+
+    *side = MH_SIDE_ANY;
     if (!name || !*name) return 0;
     n = strlen(name);
 
-    /* A-Z and 0-9 map straight onto their VK codes */
     if (n == 1) {
         char c = (char)toupper((unsigned char)name[0]);
-        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) return (UINT)c;
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) { *vk = (UINT)c; return 1; }
+        if (c == '+') { *vk = VK_OEM_PLUS; return 1; }
     }
-    /* F1..F24 */
     if ((name[0] == 'F' || name[0] == 'f') && n >= 2 && n <= 3) {
         int num = atoi(name + 1);
-        if (num >= 1 && num <= 24) return VK_F1 + num - 1;
+        if (num >= 1 && num <= 24) { *vk = VK_F1 + (UINT)num - 1; return 1; }
     }
-    for (i = 0; i < sizeof(g_keys)/sizeof(g_keys[0]); i++)
-        if (ieq(g_keys[i].name, name)) return g_keys[i].vk;
+    for (i = 0; i < KEY_COUNT; i++) {
+        if (ieq(g_keys[i].name, name)) {
+            *vk   = g_keys[i].vk;
+            *side = g_keys[i].side;
+            return 1;
+        }
+    }
     return 0;
+}
+
+UINT mh_vk_from_name(const char *name) {
+    UINT vk;
+    int side;
+    return lookup(name, &vk, &side) ? vk : 0;
 }
 
 const char *mh_name_from_vk(UINT vk) {
@@ -87,7 +120,7 @@ const char *mh_name_from_vk(UINT vk) {
     if (vk >= VK_F1 && vk <= VK_F24) {
         sprintf(buf, "F%u", vk - VK_F1 + 1); return buf;
     }
-    for (i = 0; i < sizeof(g_keys)/sizeof(g_keys[0]); i++)
+    for (i = 0; i < KEY_COUNT; i++)
         if (g_keys[i].vk == vk) return g_keys[i].name;
     return NULL;
 }
@@ -102,8 +135,25 @@ UINT mh_mod_bit_for_vk(UINT vk) {
     return 0;
 }
 
-/* Keys that live on the extended part of the scancode set. SendInput needs the
-   flag or apps that read scancodes (games, terminals, RDP) see the wrong key. */
+/* Which held-bit a physical key press sets. The low-level hook always reports
+   the side-specific VK, but map the generic ones to the left key anyway so a
+   synthesised event does not go untracked. */
+UINT mh_held_bit_for_vk(UINT vk) {
+    switch (vk) {
+        case VK_LCONTROL: case VK_CONTROL: return MH_HELD_LCTRL;
+        case VK_RCONTROL:                  return MH_HELD_RCTRL;
+        case VK_LMENU:    case VK_MENU:    return MH_HELD_LALT;
+        case VK_RMENU:                     return MH_HELD_RALT;
+        case VK_LSHIFT:   case VK_SHIFT:   return MH_HELD_LSHIFT;
+        case VK_RSHIFT:                    return MH_HELD_RSHIFT;
+        case VK_LWIN:                      return MH_HELD_LWIN;
+        case VK_RWIN:                      return MH_HELD_RWIN;
+    }
+    return 0;
+}
+
+/* Keys on the extended part of the scancode set. SendInput needs the flag or
+   apps that read scancodes (games, terminals, RDP) see the wrong key. */
 int mh_vk_is_extended(UINT vk) {
     switch (vk) {
         case VK_RCONTROL: case VK_RMENU:
@@ -117,62 +167,116 @@ int mh_vk_is_extended(UINT vk) {
     return 0;
 }
 
-/* "Alt+S", "Ctrl+Shift", "CapsLock" -> MhChord. Returns 1 on success. */
+/* "Alt+S", "Ctrl+Shift", "LCtrl+S", "RAlt", "CapsLock" -> MhChord.
+
+   A lone modifier is the trigger key itself; a modifier followed by anything
+   else is part of the chord. That positional rule is what lets "RAlt" and
+   "RAlt+S" both mean the obvious thing. */
 int mh_parse_chord(const char *text, MhChord *out) {
-    char tok[32];
+    char tok[8][32];
+    UINT vks[8];
+    int  sides[8];
+    int  count = 0, i, mainIndex = -1;
     size_t ti = 0;
     const char *p;
-    int sawKey = 0;
 
     if (!text || !out) return 0;
-    out->vk = 0; out->mods = 0;
+    out->vk = 0; out->mods = 0; out->sides = 0;
 
+    /* split on '+', tolerating padding and a trailing literal plus key */
     for (p = text; ; p++) {
         if (*p && *p != '+') {
-            if (ti == 0 && *p == ' ') continue;        /* leading padding */
-            if (ti < sizeof(tok) - 1) tok[ti++] = *p;
+            if (ti == 0 && *p == ' ') continue;
+            if (ti < sizeof(tok[0]) - 1) tok[count][ti++] = *p;
             continue;
         }
-        /* '+' as the very first char of a token means the literal plus key */
-        if (*p == '+' && ti == 0 && p[1] == '\0') { ti = 1; tok[0] = '+'; }
-        tok[ti] = 0;
-        while (ti > 0 && tok[ti-1] == ' ') tok[--ti] = 0;
+        if (*p == '+' && ti == 0 && p[1] == '\0') { tok[count][0] = '+'; ti = 1; }
+        tok[count][ti] = 0;
+        while (ti > 0 && tok[count][ti - 1] == ' ') tok[count][--ti] = 0;
 
         if (ti > 0) {
-            UINT bit;
-            UINT vk = ieq(tok, "+") ? (UINT)VK_OEM_PLUS : mh_vk_from_name(tok);
-            if (!vk) return 0;
-            bit = mh_mod_bit_for_vk(vk);
-            /* A bare modifier is a modifier only when something follows it.
-               Trailing modifiers stay in the mask: "Ctrl+Shift" is mods-only. */
-            if (bit && (vk == VK_CONTROL || vk == VK_MENU ||
-                        vk == VK_SHIFT || vk == VK_LWIN)) {
-                out->mods |= bit;
-            } else {
-                if (sawKey) return 0;
-                out->vk = vk; sawKey = 1;
-            }
+            if (!lookup(tok[count], &vks[count], &sides[count])) return 0;
+            if (++count == 8) return 0;
         }
         ti = 0;
         if (!*p) break;
     }
-    return (out->vk || out->mods) ? 1 : 0;
+    if (count == 0) return 0;
+
+    /* A single token is always the key itself, modifier or not. */
+    if (count == 1) {
+        out->vk = vks[0];
+        return 1;
+    }
+
+    for (i = 0; i < count; i++) {
+        UINT group = mh_mod_bit_for_vk(vks[i]);
+        if (group) {
+            int g;
+            for (g = 0; g < MH_GROUP_COUNT; g++) {
+                if (g_groups[g].groupBit != group) continue;
+                out->mods |= group;
+                out->sides = MH_SIDE_PUT(out->sides, g, sides[i]);
+            }
+        } else {
+            if (mainIndex >= 0) return 0;   /* two real keys in one chord */
+            mainIndex = i;
+        }
+    }
+    if (mainIndex >= 0) out->vk = vks[mainIndex];
+    return 1;
 }
 
 int mh_format_chord(const MhChord *c, char *buf, size_t cap) {
     const char *kn;
+    int g;
+
     buf[0] = 0;
-    if (c->mods & MH_MOD_CTRL)  strncat(buf, "Ctrl+",  cap - strlen(buf) - 1);
-    if (c->mods & MH_MOD_ALT)   strncat(buf, "Alt+",   cap - strlen(buf) - 1);
-    if (c->mods & MH_MOD_SHIFT) strncat(buf, "Shift+", cap - strlen(buf) - 1);
-    if (c->mods & MH_MOD_WIN)   strncat(buf, "Win+",   cap - strlen(buf) - 1);
+    for (g = 0; g < MH_GROUP_COUNT; g++) {
+        char part[16];
+        int side;
+        if (!(c->mods & g_groups[g].groupBit)) continue;
+        side = (int)MH_SIDE_GET(c->sides, g);
+        sprintf(part, "%s%s+",
+                side == MH_SIDE_LEFT ? "L" : side == MH_SIDE_RIGHT ? "R" : "",
+                g_groups[g].name);
+        strncat(buf, part, cap - strlen(buf) - 1);
+    }
     if (c->vk) {
         kn = mh_name_from_vk(c->vk);
         if (!kn) return 0;
         strncat(buf, kn, cap - strlen(buf) - 1);
     } else {
         size_t n = strlen(buf);          /* drop the dangling '+' */
-        if (n) buf[n-1] = 0;
+        if (n) buf[n - 1] = 0;
+    }
+    return 1;
+}
+
+/* Does the currently held set of modifier keys satisfy this chord?
+
+   Matching is exact: a modifier the chord does not ask for must not be down,
+   so Alt+S never fires on Ctrl+Alt+S. The one exception is the chord's own
+   trigger key - a rule on RAlt must still match while RAlt is what is held. */
+int mh_chord_matches(const MhChord *c, UINT held) {
+    UINT selfGroup = mh_mod_bit_for_vk(c->vk);
+    int g;
+
+    for (g = 0; g < MH_GROUP_COUNT; g++) {
+        int l, r, want;
+        if (g_groups[g].groupBit == selfGroup) continue;
+
+        l    = (held & g_groups[g].heldL) != 0;
+        r    = (held & g_groups[g].heldR) != 0;
+        want = (int)MH_SIDE_GET(c->sides, g);
+
+        if (c->mods & g_groups[g].groupBit) {
+            if (want == MH_SIDE_LEFT  && !l) return 0;
+            if (want == MH_SIDE_RIGHT && !r) return 0;
+            if (want == MH_SIDE_ANY && !l && !r) return 0;
+        } else if (l || r) {
+            return 0;
+        }
     }
     return 1;
 }

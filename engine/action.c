@@ -5,9 +5,7 @@
 
 /* Stamped on every event we inject, so the hook can tell our own synthetic
    input apart from that of other tools (which also set LLKHF_INJECTED). */
-#define MH_SIGNATURE 0x4D484B59UL   /* 'MHKY' */
-
-ULONG_PTR mh_signature(void) { return (ULONG_PTR)MH_SIGNATURE; }
+#define MH_SIGNATURE 0x4D484B59UL
 
 static void send_key(UINT vk, int down) {
     INPUT in;
@@ -34,55 +32,66 @@ static void send_unicode(WCHAR ch) {
     SendInput(2, in, sizeof(in[0]));
 }
 
-/* Which physical key is actually down for a modifier the user is holding.
-   Matters on release: they may be on the right-hand Ctrl, not the left. */
-static void release_mod(UINT bit) {
-    struct { UINT bit; UINT l, r; } m[] = {
-        { MH_MOD_CTRL,  VK_LCONTROL, VK_RCONTROL },
-        { MH_MOD_ALT,   VK_LMENU,    VK_RMENU    },
-        { MH_MOD_SHIFT, VK_LSHIFT,   VK_RSHIFT   },
-        { MH_MOD_WIN,   VK_LWIN,     VK_RWIN     },
-    };
-    int i;
-    for (i = 0; i < 4; i++) {
-        if (m[i].bit != bit) continue;
-        if (GetAsyncKeyState((int)m[i].l) & 0x8000) send_key(m[i].l, 0);
-        if (GetAsyncKeyState((int)m[i].r) & 0x8000) send_key(m[i].r, 0);
+/* Lift every modifier the user is physically holding, recording what was
+   lifted so it can be put back. */
+static int lift_all(UINT held, UINT *lifted) {
+    const MhModGroup *g = mh_mod_groups();
+    int i, n = 0;
+    for (i = 0; i < MH_GROUP_COUNT; i++) {
+        if (held & g[i].heldL) { send_key(g[i].vkL, 0); lifted[n++] = g[i].vkL; }
+        if (held & g[i].heldR) { send_key(g[i].vkR, 0); lifted[n++] = g[i].vkR; }
     }
+    return n;
 }
 
-static UINT press_vk_for_mod(UINT bit) {
-    switch (bit) {
-        case MH_MOD_CTRL:  return VK_LCONTROL;
-        case MH_MOD_ALT:   return VK_LMENU;
-        case MH_MOD_SHIFT: return VK_LSHIFT;
-        case MH_MOD_WIN:   return VK_LWIN;
-    }
-    return 0;
+static void restore(const UINT *keys, int n, int down) {
+    int i;
+    for (i = n - 1; i >= 0; i--) send_key(keys[i], down);
 }
 
-static const UINT g_modBits[4] = { MH_MOD_CTRL, MH_MOD_ALT, MH_MOD_SHIFT, MH_MOD_WIN };
+/* Send one chord, reconciled against the modifiers the user physically holds:
+   lift the ones the chord does not want, add the ones it does, then put the
+   keyboard back exactly as it was.
 
-/* Send one chord, reconciling it against the modifiers the user physically
-   holds: lift the ones the chord does not want, add the ones it does, then put
-   the keyboard back exactly as it was. Without this, Alt+S -> Left would leak
-   the held Alt into the target app and arrive as Alt+Left. */
-void mh_send_chord(const MhChord *c, UINT heldMods) {
-    UINT toRelease = heldMods & ~c->mods;
-    UINT toPress   = c->mods  & ~heldMods;
+   Without this, a rule mapping Alt+S to plain Left would leak the still-held
+   Alt into the target app, which would see Alt+Left instead. */
+void mh_send_chord(const MhChord *c, UINT held) {
+    const MhModGroup *g = mh_mod_groups();
+    UINT lifted[8], pressed[8];
+    int nLifted = 0, nPressed = 0;
     int i;
 
-    for (i = 0; i < 4; i++) if (toRelease & g_modBits[i]) release_mod(g_modBits[i]);
-    for (i = 0; i < 4; i++) if (toPress   & g_modBits[i]) send_key(press_vk_for_mod(g_modBits[i]), 1);
+    for (i = 0; i < MH_GROUP_COUNT; i++) {
+        int heldL = (held & g[i].heldL) != 0;
+        int heldR = (held & g[i].heldR) != 0;
+
+        if (!(c->mods & g[i].groupBit)) {
+            if (heldL) { send_key(g[i].vkL, 0); lifted[nLifted++] = g[i].vkL; }
+            if (heldR) { send_key(g[i].vkR, 0); lifted[nLifted++] = g[i].vkR; }
+            continue;
+        }
+        switch ((int)MH_SIDE_GET(c->sides, i)) {
+        case MH_SIDE_LEFT:
+            if (!heldL) { send_key(g[i].vkL, 1); pressed[nPressed++] = g[i].vkL; }
+            break;
+        case MH_SIDE_RIGHT:
+            if (!heldR) { send_key(g[i].vkR, 1); pressed[nPressed++] = g[i].vkR; }
+            break;
+        default:
+            /* Either side satisfies it, so reuse whatever is already down. */
+            if (!heldL && !heldR) { send_key(g[i].vkL, 1); pressed[nPressed++] = g[i].vkL; }
+            break;
+        }
+    }
 
     if (c->vk) { send_key(c->vk, 1); send_key(c->vk, 0); }
 
-    for (i = 3; i >= 0; i--) if (toPress   & g_modBits[i]) send_key(press_vk_for_mod(g_modBits[i]), 0);
-    for (i = 3; i >= 0; i--) if (toRelease & g_modBits[i]) send_key(press_vk_for_mod(g_modBits[i]), 1);
+    restore(pressed, nPressed, 0);
+    restore(lifted,  nLifted,  1);
 }
 
 /* Ask the focused window to change layout directly. More reliable than faking
-   Ctrl+Shift, which depends on the user's layout-switch setting being that. */
+   Ctrl+Shift, which only works if that is the user's layout-switch setting. */
 static void switch_layout(int delta) {
     HWND fg = GetForegroundWindow(), target;
     DWORD me, other;
@@ -100,19 +109,23 @@ static void switch_layout(int delta) {
                  (LPARAM)(delta < 0 ? HKL_PREV : HKL_NEXT));
 }
 
-void mh_action_run(const Action *a, UINT heldMods) {
+void mh_action_run(const Action *a, UINT held) {
     int i;
     switch (a->type) {
     case ACT_NONE:
         break;
     case ACT_COMBO:
-        for (i = 0; i < a->stepCount; i++) mh_send_chord(&a->steps[i], heldMods);
+        for (i = 0; i < a->stepCount; i++) mh_send_chord(&a->steps[i], held);
         break;
     case ACT_TEXT: {
+        UINT lifted[8];
+        int n;
         const wchar_t *p;
-        for (i = 0; i < 4; i++) if (heldMods & g_modBits[i]) release_mod(g_modBits[i]);
+        /* A held Ctrl would turn every letter into a shortcut, so the text
+           has to be typed on a clean keyboard. */
+        n = lift_all(held, lifted);
         for (p = a->text; p && *p; p++) send_unicode(*p);
-        for (i = 3; i >= 0; i--) if (heldMods & g_modBits[i]) send_key(press_vk_for_mod(g_modBits[i]), 1);
+        restore(lifted, n, 1);
         break;
     }
     case ACT_LAUNCH:

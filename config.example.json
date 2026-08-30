@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "caps-layout",
+      "name": "CapsLock переключает раскладку",
+      "enabled": true,
+      "trigger": "CapsLock",
+      "on": "release",
+      "action": { "type": "combo", "keys": ["Ctrl+Shift"] }
+    },
+    {
+      "id": "alt-s-back",
+      "name": "Alt+S — назад",
+      "enabled": true,
+      "trigger": "Alt+S",
+      "action": { "type": "combo", "keys": ["Alt+Left"] }
+    },
+    {
+      "id": "caps-layout-direct",
+      "name": "Тот же CapsLock, но без подделки Ctrl+Shift",
+      "enabled": false,
+      "trigger": "CapsLock",
+      "on": "release",
+      "action": { "type": "layout", "direction": "next" }
+    },
+    {
+      "id": "alt-d-forward-browser",
+      "name": "Alt+D — вперёд, только в Chrome",
+      "enabled": false,
+      "trigger": "Alt+D",
+      "app": "chrome.exe",
+      "action": { "type": "combo", "keys": ["Alt+Right"] }
+    },
+    {
+      "id": "signature",
+      "name": "Подпись по F13",
+      "enabled": false,
+      "trigger": "F13",
+      "action": { "type": "text", "text": "С уважением,\nИльс" }
+    },
+    {
+      "id": "terminal",
+      "name": "Win+T открывает терминал",
+      "enabled": false,
+      "trigger": "Win+T",
+      "action": { "type": "launch", "path": "wt.exe" }
+    },
+    {
+      "id": "kill-insert",
+      "name": "Insert больше не переключает режим замены",
+      "enabled": false,
+      "trigger": "Insert",
+      "action": { "type": "block" }
+    }
+  ]
+}

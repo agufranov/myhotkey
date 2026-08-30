@@ -203,9 +203,18 @@ int mh_parse_chord(const char *text, MhChord *out) {
     }
     if (count == 0) return 0;
 
-    /* A single token is always the key itself, modifier or not. */
+    /* A single token is always the key itself, modifier or not. The side still
+       has to be recorded even though there is no chord around it, or "RAlt"
+       would widen to "either Alt" and fire on the left one too. */
     if (count == 1) {
+        UINT group = mh_mod_bit_for_vk(vks[0]);
         out->vk = vks[0];
+        if (group) {
+            int g;
+            for (g = 0; g < MH_GROUP_COUNT; g++)
+                if (g_groups[g].groupBit == group)
+                    out->sides = MH_SIDE_PUT(out->sides, g, sides[0]);
+        }
         return 1;
     }
 
@@ -251,6 +260,31 @@ int mh_format_chord(const MhChord *c, char *buf, size_t cap) {
         if (n) buf[n - 1] = 0;
     }
     return 1;
+}
+
+/* Is this the key the chord triggers on?
+
+   A trigger written as "Ctrl" matches either Ctrl key; "RCtrl" matches exactly
+   one. The hook always reports the side-specific VK, so the generic names have
+   to be widened here rather than compared directly. */
+int mh_chord_key_matches(const MhChord *c, UINT eventVk) {
+    UINT group;
+    int g;
+
+    if (c->vk == eventVk) return 1;
+
+    group = mh_mod_bit_for_vk(c->vk);
+    if (!group || group != mh_mod_bit_for_vk(eventVk)) return 0;
+
+    for (g = 0; g < MH_GROUP_COUNT; g++) {
+        int side;
+        if (g_groups[g].groupBit != group) continue;
+        side = (int)MH_SIDE_GET(c->sides, g);
+        if (side == MH_SIDE_LEFT)  return eventVk == g_groups[g].vkL;
+        if (side == MH_SIDE_RIGHT) return eventVk == g_groups[g].vkR;
+        return eventVk == g_groups[g].vkL || eventVk == g_groups[g].vkR;
+    }
+    return 0;
 }
 
 /* Does the currently held set of modifier keys satisfy this chord?

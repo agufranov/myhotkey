@@ -95,6 +95,7 @@ int         mh_format_chord(const MhChord *c, char *buf, size_t cap);
 UINT        mh_mod_bit_for_vk(UINT vk);
 UINT        mh_held_bit_for_vk(UINT vk);
 int         mh_vk_is_extended(UINT vk);
+int         mh_chord_key_matches(const MhChord *c, UINT eventVk);
 int         mh_chord_matches(const MhChord *c, UINT held);
 
 /* action.c */

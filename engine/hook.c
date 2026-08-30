@@ -9,6 +9,14 @@
 
 #define MH_SIGNATURE 0x4D484B59UL
 
+/* On layouts that have AltGr - Russian among them - Windows fabricates a left
+   Ctrl press immediately in front of every right Alt, so applications that
+   predate AltGr still see Ctrl+Alt. It gives that phantom the scan code 0x21D,
+   which no physical key can produce, so it can be told apart with certainty.
+   Left untreated it breaks every rule involving the right Alt: the rule asks
+   for no other modifier, and Windows has just claimed Ctrl is down. */
+#define MH_ALTGR_PHANTOM_CTRL 0x21D
+
 static HHOOK         g_hook;
 static HWINEVENTHOOK g_winEvent;
 static RuleSet      *g_rules;
@@ -65,30 +73,6 @@ static void resync_held(void) {
     }
 }
 
-/* A trigger written as "Ctrl" matches either Ctrl key; "RCtrl" matches one.
-   The hook always reports the side-specific VK, so the generic names have to
-   be widened here rather than compared directly. */
-static int vk_matches(const MhChord *c, UINT eventVk) {
-    const MhModGroup *g = mh_mod_groups();
-    UINT group;
-    int i;
-
-    if (c->vk == eventVk) return 1;
-
-    group = mh_mod_bit_for_vk(c->vk);
-    if (!group || group != mh_mod_bit_for_vk(eventVk)) return 0;
-
-    for (i = 0; i < MH_GROUP_COUNT; i++) {
-        int side;
-        if (g[i].groupBit != group) continue;
-        side = (int)MH_SIDE_GET(c->sides, i);
-        if (side == MH_SIDE_LEFT)  return eventVk == g[i].vkL;
-        if (side == MH_SIDE_RIGHT) return eventVk == g[i].vkR;
-        return eventVk == g[i].vkL || eventVk == g[i].vkR;
-    }
-    return 0;
-}
-
 static int app_matches(const Rule *r) {
     if (!r->whenApp) return 1;
     if (_wcsicmp(r->whenApp, g_fgExe) == 0) return !r->whenAppIsExclude;
@@ -101,7 +85,7 @@ static int find_rule(UINT vk) {
     for (i = 0; i < g_rules->count; i++) {
         const Rule *r = &g_rules->rules[i];
         if (!r->enabled) continue;
-        if (!vk_matches(&r->trigger, vk)) continue;
+        if (!mh_chord_key_matches(&r->trigger, vk)) continue;
         if (!mh_chord_matches(&r->trigger, g_held)) continue;
         if (!app_matches(r)) continue;
         return i;
@@ -126,6 +110,11 @@ static LRESULT CALLBACK keyboard_proc(int code, WPARAM wParam, LPARAM lParam) {
     vk      = k->vkCode;
     down    = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
     heldBit = mh_held_bit_for_vk(vk);
+
+    /* Pass the AltGr phantom straight through - applications still need it to
+       produce the right characters - but never let it count as a held key. */
+    if (vk == VK_LCONTROL && k->scanCode == MH_ALTGR_PHANTOM_CTRL)
+        return CallNextHookEx(g_hook, code, wParam, lParam);
 
     /* Capture mode: the UI is recording a shortcut. Swallow everything so the
        browser, the shell and the focused app never see it, and hand the key to

@@ -41,6 +41,22 @@ static void rejected(const char *text) {
     printf("ok    %-22s rejected\n", text);
 }
 
+/* Does this chord accept that physical key as its trigger? */
+static void key(const char *text, UINT eventVk, int want) {
+    MhChord c;
+    char detail[96];
+    g_ran++;
+    if (!mh_parse_chord(text, &c)) { fail(text, "did not parse"); return; }
+    if (mh_chord_key_matches(&c, eventVk) != want) {
+        sprintf(detail, "vk 0x%02X: %s", eventVk,
+                want ? "should have been accepted" : "should have been refused");
+        fail(text, detail);
+        return;
+    }
+    printf("ok    %-22s %s vk=0x%02X\n", text,
+           want ? "accepts   " : "refuses   ", eventVk);
+}
+
 /* Does this chord fire while exactly these modifier keys are held down? */
 static void match(const char *text, UINT held, int want) {
     MhChord c;
@@ -113,6 +129,19 @@ int main(void) {
        held - its own group is excluded from the exactness check. */
     match("RAlt", MH_HELD_RALT, 1);
     match("RAlt", MH_HELD_RALT | MH_HELD_LCTRL, 0);
+
+    printf("\n--- which physical key the trigger accepts ---\n");
+    key("RAlt",  VK_RMENU,    1);
+    key("RAlt",  VK_LMENU,    0);   /* the lone-modifier side must survive */
+    key("LAlt",  VK_LMENU,    1);
+    key("LAlt",  VK_RMENU,    0);
+    key("Alt",   VK_LMENU,    1);   /* generic name accepts either side */
+    key("Alt",   VK_RMENU,    1);
+    key("LCtrl", VK_LCONTROL, 1);
+    key("LCtrl", VK_RCONTROL, 0);
+    key("Ctrl",  VK_RCONTROL, 1);
+    key("Alt+S", 'S',         1);
+    key("Alt+S", 'D',         0);
 
     printf("\n%d checks, %s\n", g_ran,
            g_fail ? "FAILURES PRESENT" : "all passed");

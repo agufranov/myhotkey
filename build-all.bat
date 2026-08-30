@@ -4,12 +4,12 @@ setlocal
 
 cd /d "%~dp0"
 
-echo [1/3] engine
+echo [1/4] engine
 call "%~dp0build.bat" %1
 if errorlevel 1 exit /b 1
 
 echo.
-echo [2/3] settings window
+echo [2/4] settings window
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "MSBUILD="
 if exist "%VSWHERE%" (
@@ -28,7 +28,7 @@ if errorlevel 1 (echo [build] FAILED & exit /b 1)
 
 :tests
 echo.
-echo [3/3] tests
+echo [3/4] tests
 call test\run.bat >nul 2>&1
 if errorlevel 1 (
     echo [build] TESTS FAILED - run test\run.bat to see which
@@ -37,6 +37,21 @@ if errorlevel 1 (
 echo [build] tests passed
 
 echo.
-for %%f in (build\myhotkey-engine.exe) do echo   myhotkey-engine.exe  %%~zf bytes
-if exist build\myhotkey-ui.exe for %%f in (build\myhotkey-ui.exe) do echo   myhotkey-ui.exe      %%~zf bytes
+echo [4/4] installer
+set "ISCC="
+if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if not defined ISCC (
+    echo [build] Inno Setup not found - skipping the installer.
+    echo [build] winget install JRSoftware.InnoSetup
+    goto :summary
+)
+"%ISCC%" /Q "installer\myhotkey.iss"
+if errorlevel 1 (echo [build] installer FAILED & exit /b 1)
+
+:summary
+echo.
+for %%f in (build\myhotkey-engine.exe) do echo   myhotkey-engine.exe        %%~zf bytes
+if exist build\myhotkey-ui.exe for %%f in (build\myhotkey-ui.exe) do echo   myhotkey-ui.exe            %%~zf bytes
+for %%f in (build\MyHotkey-Setup-*.exe) do echo   %%~nxf  %%~zf bytes
 endlocal

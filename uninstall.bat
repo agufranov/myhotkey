@@ -30,6 +30,7 @@ ping -n 2 127.0.0.1 >nul
 schtasks /delete /tn "MyHotkey" /f >nul 2>&1
 reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v MyHotkey /f >nul 2>&1
 
+del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\MyHotkey.lnk" >nul 2>&1
 if exist "%TARGET%" rd /s /q "%TARGET%"
 
 if exist "%TARGET%" (

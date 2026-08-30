@@ -77,6 +77,7 @@ static void reload_config(int announceSuccess) {
     static RuleSet fresh;
     wchar_t tip[128];
     char err[256];
+    int i, enabled = 0;
 
     /* The hook callback runs on this same thread, dispatched by our message
        loop, so swapping the rule set here cannot race with a keystroke. */
@@ -84,8 +85,8 @@ static void reload_config(int announceSuccess) {
         wchar_t werr[256];
         MultiByteToWideChar(CP_UTF8, 0, err, -1, werr, 256);
         _snprintf(g_lastError, sizeof(g_lastError) - 1, "%s", err);
-        tray_notify(L"MyHotkey: config error", werr, NIIF_ERROR);
-        tray_tip(L"MyHotkey - config error, old rules still active");
+        tray_notify(L"MyHotkey: ошибка в настройках", werr, NIIF_ERROR);
+        tray_tip(L"MyHotkey — ошибка в настройках, работают прежние правила");
         return;
     }
 
@@ -95,8 +96,12 @@ static void reload_config(int announceSuccess) {
     g_rules = fresh;
     mh_hook_set_rules(&g_rules);
 
-    _snwprintf(tip, 127, L"MyHotkey - %d rule%s active", g_rules.count,
-               g_rules.count == 1 ? L"" : L"s");
+    /* Enabled ones, not the total: rules ship switched off, so a count of
+       everything loaded would claim the app is doing work it is not. */
+    for (i = 0; i < g_rules.count; i++)
+        if (g_rules.rules[i].enabled) enabled++;
+
+    _snwprintf(tip, 127, L"MyHotkey — правил включено: %d", enabled);
     tray_tip(tip);
     if (announceSuccess)
         tray_notify(MH_APP_NAME, tip, NIIF_INFO);
@@ -141,13 +146,13 @@ static void show_menu(void) {
     POINT pt;
 
     AppendMenuW(menu, MF_STRING | (mh_hook_get_enabled() ? MF_CHECKED : 0),
-                ID_TRAY_ENABLED, L"Enabled");
+                ID_TRAY_ENABLED, L"Перехват включён");
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(menu, MF_STRING, ID_TRAY_EDIT,   L"Edit shortcuts...");
-    AppendMenuW(menu, MF_STRING, ID_TRAY_RELOAD, L"Reload config");
-    AppendMenuW(menu, MF_STRING, ID_TRAY_FOLDER, L"Open config folder");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_EDIT,   L"Настроить сочетания…");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_RELOAD, L"Перечитать настройки");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_FOLDER, L"Открыть папку настроек");
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT,   L"Exit");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT,   L"Выход");
 
     GetCursorPos(&pt);
     /* Required, or the menu refuses to close when the user clicks elsewhere. */
@@ -272,15 +277,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
 
     mh_hook_set_target(g_hwnd);
     if (!mh_hook_install()) {
-        tray_notify(L"MyHotkey", L"Could not install the keyboard hook.", NIIF_ERROR);
+        tray_notify(L"MyHotkey", L"Не удалось установить перехват клавиатуры.", NIIF_ERROR);
         return 1;
     }
 
     reload_config(0);
     watch_config();
     if (!mh_ipc_start(g_hwnd))
-        tray_notify(MH_APP_NAME, L"The control pipe could not be opened; "
-                                 L"the settings window will not connect.", NIIF_WARNING);
+        tray_notify(MH_APP_NAME, L"Канал управления не открылся — окно настроек "
+                                 L"не сможет подключиться.", NIIF_WARNING);
     SetTimer(g_hwnd, TIMER_HOOK, 60000, NULL);
 
     for (;;) {

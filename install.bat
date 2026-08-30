@@ -4,6 +4,7 @@ setlocal enabledelayedexpansion
 
 set "TARGET=%LOCALAPPDATA%\MyHotkey"
 set "TASK=MyHotkey"
+set "UI=myhotkey-ui.exe"
 
 cd /d "%~dp0"
 if not exist "build\myhotkey-engine.exe" (
@@ -42,6 +43,18 @@ copy /y "build\myhotkey-engine.exe" "%TARGET%\" >nul
 if errorlevel 1 (echo Could not copy the engine. & pause & exit /b 1)
 if exist "build\myhotkey-ui.exe" copy /y "build\myhotkey-ui.exe" "%TARGET%\" >nul
 
+rem A tray icon is not discoverable enough on its own - people look in the Start
+rem menu for a thing they installed. The real installer makes this shortcut too.
+set "LNK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\MyHotkey.lnk"
+if exist "%TARGET%\%UI%" (
+    powershell -NoProfile -Command ^
+        "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%LNK%');" ^
+        "$s.TargetPath = '%TARGET%\%UI%';" ^
+        "$s.WorkingDirectory = '%TARGET%';" ^
+        "$s.Description = 'Настройка сочетаний клавиш';" ^
+        "$s.Save()" >nul 2>&1
+)
+
 set "STARTUP=run key"
 schtasks /delete /tn "%TASK%" /f >nul 2>&1
 if "%ELEVATED%"=="1" (
@@ -58,12 +71,22 @@ if "!STARTUP!"=="task" (
         /t REG_SZ /d "\"%TARGET%\myhotkey-engine.exe\"" /f >nul
 )
 
-start "" "%TARGET%\myhotkey-engine.exe" >nul 2>&1
+rem Start through the task where there is one. Two reasons: it comes up exactly
+rem as it will every morning - same privileges, same parent - so a problem shows
+rem up now rather than tomorrow; and it does not inherit this console, which a
+rem plain "start" does, leaving whoever invoked this script waiting on a process
+rem that never exits.
+if "!STARTUP!"=="task" (
+    schtasks /run /tn "%TASK%" >nul 2>&1
+) else (
+    start "" "%TARGET%\myhotkey-engine.exe" >nul 2>&1
+)
 
 echo.
 echo Installed.
 echo   files      %TARGET%
 echo   settings   %APPDATA%\MyHotkey\config.json
+echo   shortcut   Start menu, "MyHotkey"
 if "!STARTUP!"=="task" (
     echo   at logon   scheduled task, highest privileges - starts early,
     echo              and works inside elevated windows too

@@ -30,8 +30,21 @@ myhotkey-ui.exe        WPF, ~44 КБ, запускается по требова
 
 ## Установка
 
-Готовый установщик — `build\MyHotkey-Setup-1.0.0.exe`, 2,1 МБ. Обычный мастер,
-запись в «Программах и компонентах», ярлык в меню «Пуск». Удаление оттуда же.
+```
+winget install agufranov.MyHotkey
+```
+
+Одна команда, один запрос UAC — и всё. Движок запускается сразу, не дожидаясь
+следующего входа в систему, и дальше поднимается сам. Обновление —
+`winget upgrade`, удаление — `winget uninstall agufranov.MyHotkey`.
+
+Правила по умолчанию идут **выключенными**: три примера видны в окне настроек,
+включаются галочкой. Молча переназначать CapsLock на машине, куда нас только что
+поставили, было бы невежливо.
+
+Альтернатива — установщик `build\MyHotkey-Setup-1.0.0.exe`, 2,1 МБ. Обычный
+мастер, запись в «Программах и компонентах», ярлык в меню «Пуск». Удаление
+оттуда же.
 
 Он один раз спросит права администратора, и вот зачем. Папка «Автозагрузка» и
 ключ Run запускают программы в самом конце входа в систему — ровно та задержка,
@@ -61,6 +74,23 @@ MyHotkey-Setup-1.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=startup
 
 Для разработки есть `install.bat` и `uninstall.bat`: то же самое, но ставят в
 `%LOCALAPPDATA%` прямо из `build\` и без мастера.
+
+## Выпуск версии
+
+1. Поднять `AppVersion` в [installer/myhotkey.iss](installer/myhotkey.iss) и
+   `PackageVersion` в трёх файлах [installer/winget/](installer/winget/).
+2. `build-all.bat` — собирает всё, включая установщик.
+3. Выложить `build\MyHotkey-Setup-<версия>.exe` в релиз на GitHub.
+4. Подставить в манифест ссылку и хеш:
+   `certutil -hashfile build\MyHotkey-Setup-<версия>.exe SHA256`
+5. Отправить PR с папкой манифестов в
+   [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), в
+   `manifests/a/agufranov/MyHotkey/<версия>/`. Проще через
+   [wingetcreate](https://github.com/microsoft/winget-create):
+   `wingetcreate update agufranov.MyHotkey --urls <ссылка> --version <версия> --submit`
+
+Манифест уже содержит `/TASKS=startup` в ключах тихой установки, иначе winget
+поставил бы программу без автозапуска — то есть почти бесполезной.
 
 ## Сборка
 

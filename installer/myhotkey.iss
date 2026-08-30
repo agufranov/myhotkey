@@ -69,9 +69,19 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Filename: "{sys}\schtasks.exe"; \
     Parameters: "/create /tn ""{#TaskName}"" /tr ""\""{app}\{#EngineExe}\"""" /sc onlogon /rl highest /f"; \
     Flags: runhidden; Tasks: startup; StatusMsg: "Регистрация автозапуска..."
-Filename: "{app}\{#EngineExe}"; Description: "{cm:LaunchNow}"; Flags: postinstall nowait skipifsilent
+; Start it now, not at the next logon. A silent install - which is what winget
+; and any deployment tool performs - would otherwise report success while
+; nothing at all happens until the user next signs in. Starting through the
+; task rather than the exe means it comes up exactly as it will every morning:
+; same privileges, same parent, so a problem shows up here and not tomorrow.
+Filename: "{sys}\schtasks.exe"; Parameters: "/run /tn ""{#TaskName}"""; \
+    Flags: runhidden; Tasks: startup
+Filename: "{app}\{#EngineExe}"; Flags: runhidden nowait; Tasks: not startup
+
+; Offered, not forced: someone installing by hand usually wants to set up a
+; shortcut straight away, but nobody deploying silently wants a window.
 Filename: "{app}\{#UiExe}"; Description: "{cm:OpenSettings}"; \
-    Flags: postinstall nowait skipifsilent unchecked skipifdoesntexist
+    Flags: postinstall nowait skipifsilent skipifdoesntexist
 
 [UninstallRun]
 ; Order matters: drop the task first so nothing restarts the engine, then stop

@@ -197,26 +197,37 @@ void mh_config_free(RuleSet *rs) {
     memset(rs, 0, sizeof(*rs));
 }
 
-/* Written once, on first run, so a fresh install already does something and
-   the user has a worked example to look at. */
+/* Written once, on first run, so the settings window opens with something to
+   look at rather than an empty list.
+
+   Every one of them starts switched off. Silently changing what CapsLock does
+   on a machine we were just installed on would be a rude first impression, and
+   the whole point of the list is that turning a rule on is one click. */
 static const char *kDefaultConfig =
 "{\n"
 "  \"version\": 1,\n"
 "  \"rules\": [\n"
 "    {\n"
 "      \"id\": \"caps-layout\",\n"
-"      \"name\": \"CapsLock switches the keyboard layout\",\n"
-"      \"enabled\": true,\n"
+"      \"name\": \"CapsLock переключает раскладку\",\n"
+"      \"enabled\": false,\n"
 "      \"trigger\": \"CapsLock\",\n"
 "      \"on\": \"release\",\n"
-"      \"action\": { \"type\": \"combo\", \"keys\": [\"Ctrl+Shift\"] }\n"
+"      \"action\": { \"type\": \"layout\", \"direction\": \"next\" }\n"
 "    },\n"
 "    {\n"
 "      \"id\": \"alt-s-back\",\n"
-"      \"name\": \"Alt+S goes back\",\n"
-"      \"enabled\": true,\n"
+"      \"name\": \"Alt+S — назад\",\n"
+"      \"enabled\": false,\n"
 "      \"trigger\": \"Alt+S\",\n"
 "      \"action\": { \"type\": \"combo\", \"keys\": [\"Alt+Left\"] }\n"
+"    },\n"
+"    {\n"
+"      \"id\": \"kill-insert\",\n"
+"      \"name\": \"Insert не переключает режим замены\",\n"
+"      \"enabled\": false,\n"
+"      \"trigger\": \"Insert\",\n"
+"      \"action\": { \"type\": \"block\" }\n"
 "    }\n"
 "  ]\n"
 "}\n";

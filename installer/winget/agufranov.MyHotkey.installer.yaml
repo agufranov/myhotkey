@@ -1,0 +1,26 @@
+# Заполните InstallerUrl и InstallerSha256 перед отправкой.
+# Хеш: certutil -hashfile build\MyHotkey-Setup-1.0.0.exe SHA256
+PackageIdentifier: agufranov.MyHotkey
+PackageVersion: 1.0.0
+InstallerType: inno
+Scope: machine
+InstallerLocale: ru-RU
+# Inno понимает эти ключи сам, но winget подставляет их явно.
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+# /TASKS=startup включает задачу автозапуска. Без неё движок поставится,
+# но не будет подниматься при входе в систему - то есть смысла в нём мало.
+InstallerSwitches:
+  Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=startup
+  SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=startup
+  Custom: /TASKS=startup
+ProductCode: '{8F3A6C21-49D7-4A1E-9C2B-7E5D0B4F1A93}_is1'
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/agufranov/myhotkey/releases/download/v1.0.0/MyHotkey-Setup-1.0.0.exe
+    InstallerSha256: 7996757B0F570F98A6348079509F31857AA35C833862EFFF19651EF8C97C2E54
+ManifestType: installer
+ManifestVersion: 1.6.0

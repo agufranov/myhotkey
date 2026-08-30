@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set "SRC=engine\main.c engine\hook.c engine\action.c engine\keys.c engine\config.c engine\json.c"
+set "SRC=engine\main.c engine\hook.c engine\action.c engine\keys.c engine\config.c engine\json.c engine\ipc.c"
 set "OUT=build\myhotkey-engine.exe"
 if not exist build mkdir build
 

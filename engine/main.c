@@ -10,6 +10,10 @@
 #define MH_CLASS       L"MyHotkeyEngineWindow"
 #define TIMER_RELOAD   1
 #define TIMER_HOOK     2
+#define TIMER_CAPTURE  3
+
+/* A recorder left armed swallows the whole keyboard, so it gets a deadline. */
+#define CAPTURE_TIMEOUT_MS 60000
 
 #define ID_TRAY_ENABLED 100
 #define ID_TRAY_EDIT    101
@@ -26,6 +30,15 @@ static HANDLE  g_configWatch = INVALID_HANDLE_VALUE;
 static NOTIFYICONDATAW g_nid;
 static UINT    g_taskbarCreated;
 static char    g_lastError[256];
+static int     g_capturing;
+
+int  mh_engine_rule_count(void)   { return g_rules.count; }
+int  mh_engine_capturing(void)    { return g_capturing; }
+void mh_engine_set_capturing(int on) {
+    g_capturing = on;
+    if (on) SetTimer(g_hwnd, TIMER_CAPTURE, CAPTURE_TIMEOUT_MS, NULL);
+    else    KillTimer(g_hwnd, TIMER_CAPTURE);
+}
 
 /* ---------------------------------------------------------------- tray --- */
 
@@ -160,6 +173,21 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case MH_WM_CAPTURED: {
+        /* The UI is recording a shortcut. The hook has already swallowed the
+           key, so nothing else on the system saw it - that is what lets the
+           recorder catch Alt+Tab and Win+R. */
+        MhChord c;
+        char text[64], line[96];
+        mh_chord_from_event((UINT)wp, (UINT)lp, &c);
+        if (mh_format_chord(&c, text, sizeof(text))) {
+            _snprintf(line, sizeof(line) - 1, "key %s\n", text);
+            line[sizeof(line) - 1] = 0;
+            mh_ipc_push(line);
+        }
+        return 0;
+    }
+
     case MH_WM_RELOAD:
         reload_config(1);
         return 0;
@@ -183,6 +211,13 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (wp == TIMER_RELOAD) {
             KillTimer(hwnd, TIMER_RELOAD);   /* debounced: editors save in bursts */
             reload_config(0);
+        } else if (wp == TIMER_CAPTURE) {
+            /* The UI armed the recorder and never disarmed it - it crashed, or
+               froze. Give the keyboard back rather than leave it swallowed. */
+            KillTimer(hwnd, TIMER_CAPTURE);
+            mh_hook_set_capture(0);
+            g_capturing = 0;
+            mh_ipc_push("capture timeout\n");
         } else if (wp == TIMER_HOOK) {
             /* Windows drops a hook that once ran too slowly and tells nobody.
                Re-arming it costs microseconds, so just do it periodically. */
@@ -243,16 +278,28 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
 
     reload_config(0);
     watch_config();
+    if (!mh_ipc_start(g_hwnd))
+        tray_notify(MH_APP_NAME, L"The control pipe could not be opened; "
+                                 L"the settings window will not connect.", NIIF_WARNING);
     SetTimer(g_hwnd, TIMER_HOOK, 60000, NULL);
 
     for (;;) {
-        DWORD r = MsgWaitForMultipleObjects(
-            g_configWatch == INVALID_HANDLE_VALUE ? 0 : 1,
-            &g_configWatch, FALSE, INFINITE, QS_ALLINPUT);
+        HANDLE waits[2];
+        DWORD count = 0, r;
 
-        if (r == WAIT_OBJECT_0 && g_configWatch != INVALID_HANDLE_VALUE) {
-            SetTimer(g_hwnd, TIMER_RELOAD, 250, NULL);
-            FindNextChangeNotification(g_configWatch);
+        if (g_configWatch != INVALID_HANDLE_VALUE) waits[count++] = g_configWatch;
+        if (mh_ipc_event())                        waits[count++] = mh_ipc_event();
+
+        r = MsgWaitForMultipleObjects(count, waits, FALSE, INFINITE, QS_ALLINPUT);
+
+        if (r < WAIT_OBJECT_0 + count) {
+            HANDLE signalled = waits[r - WAIT_OBJECT_0];
+            if (signalled == g_configWatch) {
+                SetTimer(g_hwnd, TIMER_RELOAD, 250, NULL);
+                FindNextChangeNotification(g_configWatch);
+            } else {
+                mh_ipc_pump();
+            }
             continue;
         }
 
@@ -264,6 +311,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
     }
 
 done:
+    mh_ipc_stop();
     mh_hook_remove();
     mh_config_free(&g_rules);
     if (g_configWatch != INVALID_HANDLE_VALUE) FindCloseChangeNotification(g_configWatch);

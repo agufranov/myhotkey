@@ -95,6 +95,7 @@ int         mh_format_chord(const MhChord *c, char *buf, size_t cap);
 UINT        mh_mod_bit_for_vk(UINT vk);
 UINT        mh_held_bit_for_vk(UINT vk);
 int         mh_vk_is_extended(UINT vk);
+void        mh_chord_from_event(UINT vk, UINT held, MhChord *out);
 int         mh_chord_key_matches(const MhChord *c, UINT eventVk);
 int         mh_chord_matches(const MhChord *c, UINT held);
 
@@ -114,6 +115,18 @@ int  mh_config_write_default(const wchar_t *path);
 #define MH_WM_CAPTURED    (WM_APP + 2)   /* wParam = vk,         lParam = held mask */
 #define MH_WM_RELOAD      (WM_APP + 3)
 #define MH_WM_TRAY        (WM_APP + 4)
+
+/* ipc.c - the named pipe the UI talks to */
+int    mh_ipc_start(HWND target);
+void   mh_ipc_stop(void);
+HANDLE mh_ipc_event(void);
+void   mh_ipc_pump(void);
+void   mh_ipc_push(const char *line);
+
+/* main.c - state the pipe has to report on */
+int  mh_engine_rule_count(void);
+int  mh_engine_capturing(void);
+void mh_engine_set_capturing(int on);
 
 /* hook.c */
 int  mh_hook_install(void);

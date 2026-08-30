@@ -262,6 +262,27 @@ int mh_format_chord(const MhChord *c, char *buf, size_t cap) {
     return 1;
 }
 
+/* Turn a live key event into the chord a shortcut recorder should show.
+
+   Modifiers come out side-agnostic on purpose: someone pressing left Ctrl
+   almost always means "Ctrl", and a rule that fires on only one of the two is
+   a surprise. The side stays available for the trigger key itself, where it is
+   unambiguous, and the UI can offer to narrow a modifier afterwards. */
+void mh_chord_from_event(UINT vk, UINT held, MhChord *out) {
+    UINT selfGroup = mh_mod_bit_for_vk(vk);
+    int g;
+
+    out->vk = vk;
+    out->mods = 0;
+    out->sides = 0;
+
+    for (g = 0; g < MH_GROUP_COUNT; g++) {
+        if (g_groups[g].groupBit == selfGroup) continue;
+        if (held & (g_groups[g].heldL | g_groups[g].heldR))
+            out->mods |= g_groups[g].groupBit;
+    }
+}
+
 /* Is this the key the chord triggers on?
 
    A trigger written as "Ctrl" matches either Ctrl key; "RCtrl" matches exactly

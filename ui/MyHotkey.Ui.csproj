@@ -42,10 +42,6 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="RuleEditor.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
   </ItemGroup>
 
   <ItemGroup>
@@ -55,10 +51,6 @@
     </Compile>
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="RuleEditor.xaml.cs">
-      <DependentUpon>RuleEditor.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Json.cs" />

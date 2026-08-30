@@ -1,67 +1,200 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MyHotkey.MainWindow"
-        Title="MyHotkey" Width="880" Height="560" MinWidth="680" MinHeight="380"
-        Background="{StaticResource Bg}"
+        Title="MyHotkey" Width="920" Height="600" MinWidth="760" MinHeight="460"
+        UseLayoutRounding="True"
+        Background="{x:Static SystemColors.WindowBrush}"
         WindowStartupLocation="CenterScreen">
 
-  <Grid Margin="18">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
+  <!-- Master-detail, no modal editor and no save button: pick a rule on the
+       left, change it on the right, the change lands in config.json half a
+       second later and the engine picks it up. The one field that cannot be a
+       plain control is the shortcut itself - it is recorded through the
+       engine's hook, which is what lets it capture Alt+Tab and Win+R. -->
+
+  <DockPanel>
 
     <!-- header -->
-    <Grid Grid.Row="0" Margin="0,0,0,14">
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBlock Text="Сочетания клавиш" FontSize="19" FontWeight="SemiBold"/>
-        <Border x:Name="StatusPill" CornerRadius="10" Padding="9,3" Margin="12,2,0,0"
-                Background="{StaticResource AccentBg}" VerticalAlignment="Center">
-          <TextBlock x:Name="StatusText" Text="соединение…" FontSize="11"
-                     Foreground="{StaticResource Accent}"/>
-        </Border>
-      </StackPanel>
-      <CheckBox x:Name="MasterToggle" Content="Перехват включён"
-                HorizontalAlignment="Right" VerticalAlignment="Center"
-                Checked="MasterToggle_Changed" Unchecked="MasterToggle_Changed"/>
+    <Border DockPanel.Dock="Top" Padding="14,10"
+            BorderBrush="{x:Static SystemColors.ActiveBorderBrush}" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <CheckBox x:Name="MasterToggle" DockPanel.Dock="Right" VerticalAlignment="Center"
+                  Content="Перехват включён"
+                  Checked="MasterToggle_Changed" Unchecked="MasterToggle_Changed"/>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="MyHotkey" FontSize="16" FontWeight="SemiBold"/>
+          <TextBlock x:Name="StatusText" Margin="12,4,0,0" FontSize="11"
+                     VerticalAlignment="Center" Text="подключение…"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- footer: live-apply notice, conflicts, warnings -->
+    <StatusBar DockPanel.Dock="Bottom">
+      <StatusBarItem>
+        <TextBlock x:Name="Hint" Text="Изменения применяются сразу."/>
+      </StatusBarItem>
+    </StatusBar>
+
+    <Grid Margin="14">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="320"/>
+        <ColumnDefinition Width="14"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- left: the rules -->
+      <DockPanel Grid.Column="0">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+          <Button Content="Добавить" Padding="12,4" Margin="0,0,6,0" Click="Add_Click"/>
+          <Button Content="Дублировать" Padding="12,4" Margin="0,0,6,0" Click="Duplicate_Click"/>
+          <Button Content="Удалить" Padding="12,4" Click="Delete_Click"/>
+        </StackPanel>
+
+        <ListBox x:Name="RuleList" SelectionChanged="RuleList_SelectionChanged"
+                 HorizontalContentAlignment="Stretch"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <DockPanel Margin="2,3">
+                <CheckBox IsChecked="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}"
+                          VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <StackPanel>
+                  <TextBlock x:Name="title" Text="{Binding Title}"/>
+                  <TextBlock Text="{Binding Subtitle}" FontSize="11"
+                             Foreground="{x:Static SystemColors.GrayTextBrush}"
+                             TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+              </DockPanel>
+              <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Enabled}" Value="False">
+                  <Setter TargetName="title" Property="Foreground"
+                          Value="{x:Static SystemColors.GrayTextBrush}"/>
+                </DataTrigger>
+              </DataTemplate.Triggers>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <!-- right: the selected rule -->
+      <Grid Grid.Column="2">
+        <TextBlock x:Name="EmptyPane" Text="Выберите правило слева или добавьте новое."
+                   Foreground="{x:Static SystemColors.GrayTextBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+        <ScrollViewer x:Name="Editor" VerticalScrollBarVisibility="Auto" Visibility="Collapsed"
+                      Padding="0,0,8,0">
+          <StackPanel MaxWidth="520" HorizontalAlignment="Left">
+
+            <TextBlock Text="Сочетание" FontSize="11"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+            <Button x:Name="RecordBtn" Click="Record_Click"
+                    HorizontalContentAlignment="Left" Padding="10,8" Margin="0,0,0,4">
+              <TextBlock x:Name="TriggerText" FontFamily="Consolas" FontSize="14"
+                         Text="Нажмите, чтобы записать"/>
+            </Button>
+            <TextBlock x:Name="RecordHint" FontSize="11" Margin="0,0,0,14"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}"
+                       Text="Ловятся любые сочетания, включая Alt+Tab и Win+R."/>
+
+            <TextBlock Text="Срабатывать" FontSize="11"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+              <RadioButton x:Name="OnPress" Content="при нажатии" GroupName="when"
+                           Margin="0,0,16,0" Checked="Editor_Changed"/>
+              <RadioButton x:Name="OnRelease" Content="при отпускании" GroupName="when"
+                           Checked="Editor_Changed"/>
+            </StackPanel>
+
+            <TextBlock Text="Действие" FontSize="11"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+            <ComboBox x:Name="ActionKindBox" Width="220" HorizontalAlignment="Left"
+                      Margin="0,0,0,10" SelectionChanged="Editor_Changed">
+              <ComboBoxItem Content="Отправить сочетание"/>
+              <ComboBoxItem Content="Напечатать текст"/>
+              <ComboBoxItem Content="Запустить программу"/>
+              <ComboBoxItem Content="Переключить раскладку"/>
+              <ComboBoxItem Content="Проглотить клавишу"/>
+            </ComboBox>
+
+            <!-- combo -->
+            <StackPanel x:Name="ComboPanel" Margin="0,0,0,14">
+              <Button x:Name="RecordActionBtn" Click="RecordAction_Click"
+                      HorizontalContentAlignment="Left" Padding="10,7" Margin="0,0,0,4">
+                <TextBlock x:Name="ActionKeysText" FontFamily="Consolas" FontSize="13"
+                           Text="Нажмите, чтобы записать"/>
+              </Button>
+              <TextBlock FontSize="11" Foreground="{x:Static SystemColors.GrayTextBrush}"
+                         Text="Например Alt+Left — «назад», или Ctrl+Shift — смена раскладки."/>
+            </StackPanel>
+
+            <!-- text -->
+            <StackPanel x:Name="TextPanel" Margin="0,0,0,14" Visibility="Collapsed">
+              <TextBox x:Name="TextBoxValue" AcceptsReturn="True" TextWrapping="Wrap"
+                       Height="80" VerticalScrollBarVisibility="Auto"
+                       TextChanged="Editor_Changed"/>
+              <TextBlock FontSize="11" Margin="0,4,0,0"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}"
+                         Text="Печатается как есть, раскладка значения не имеет."/>
+            </StackPanel>
+
+            <!-- launch -->
+            <StackPanel x:Name="LaunchPanel" Margin="0,0,0,14" Visibility="Collapsed">
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="PathBox" Grid.Column="0" TextChanged="Editor_Changed"/>
+                <Button Grid.Column="1" Content="Обзор…" Padding="12,4" Margin="8,0,0,0"
+                        Click="Browse_Click"/>
+              </Grid>
+              <TextBlock Text="Аргументы" FontSize="11"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+              <TextBox x:Name="ArgsBox" TextChanged="Editor_Changed"/>
+            </StackPanel>
+
+            <!-- layout -->
+            <StackPanel x:Name="LayoutPanel" Margin="0,0,0,14" Visibility="Collapsed">
+              <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="LayoutNext" Content="следующая раскладка" GroupName="layout"
+                             Margin="0,0,16,0" Checked="Editor_Changed"/>
+                <RadioButton x:Name="LayoutPrev" Content="предыдущая" GroupName="layout"
+                             Checked="Editor_Changed"/>
+              </StackPanel>
+              <TextBlock FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}"
+                         Text="Переключает напрямую и не зависит от того, какое сочетание назначено на смену раскладки в Windows."/>
+            </StackPanel>
+
+            <!-- block -->
+            <TextBlock x:Name="BlockPanel" Margin="0,0,0,14" Visibility="Collapsed"
+                       TextWrapping="Wrap"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}"
+                       Text="Клавиша будет проглочена и не дойдёт ни до одного приложения. Так отключают, например, Insert или CapsLock."/>
+
+            <TextBlock Text="Где работает" FontSize="11"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+            <ComboBox x:Name="ScopeBox" Width="220" HorizontalAlignment="Left"
+                      SelectionChanged="Editor_Changed">
+              <ComboBoxItem Content="везде"/>
+              <ComboBoxItem Content="только в программе"/>
+              <ComboBoxItem Content="кроме программы"/>
+            </ComboBox>
+            <TextBox x:Name="AppBox" Width="220" HorizontalAlignment="Left"
+                     Margin="0,6,0,2" IsEnabled="False" TextChanged="Editor_Changed"/>
+            <TextBlock FontSize="11" Margin="0,0,0,14"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}"
+                       Text="Имя процесса, например chrome.exe"/>
+
+            <TextBlock Text="Название (необязательно)" FontSize="11"
+                       Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+            <TextBox x:Name="NameBox" Margin="0,0,0,16" TextChanged="Editor_Changed"/>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
     </Grid>
-
-    <!-- toolbar -->
-    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-      <Button x:Name="AddBtn"  Content="Добавить"   Style="{StaticResource BtnPrimary}" Click="Add_Click"/>
-      <Button x:Name="EditBtn" Content="Изменить"   Style="{StaticResource Btn}" Click="Edit_Click"/>
-      <Button x:Name="DupBtn"  Content="Дублировать" Style="{StaticResource Btn}" Click="Duplicate_Click"/>
-      <Button x:Name="DelBtn"  Content="Удалить"    Style="{StaticResource Btn}" Click="Delete_Click"/>
-    </StackPanel>
-
-    <!-- rules -->
-    <DataGrid Grid.Row="2" x:Name="Grid" AutoGenerateColumns="False" CanUserAddRows="False"
-              CanUserResizeRows="False" SelectionMode="Single" IsReadOnly="False"
-              MouseDoubleClick="Grid_DoubleClick">
-      <DataGrid.Columns>
-        <DataGridCheckBoxColumn Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}"
-                                Width="42" Header=""/>
-        <DataGridTextColumn Header="Сочетание" Binding="{Binding Trigger}" Width="180" IsReadOnly="True">
-          <DataGridTextColumn.ElementStyle>
-            <Style TargetType="TextBlock">
-              <Setter Property="FontFamily" Value="Consolas"/>
-              <Setter Property="FontSize" Value="13"/>
-              <Setter Property="VerticalAlignment" Value="Center"/>
-              <Setter Property="Margin" Value="10,0,0,0"/>
-            </Style>
-          </DataGridTextColumn.ElementStyle>
-        </DataGridTextColumn>
-        <DataGridTextColumn Header="Действие" Binding="{Binding ActionSummary}" Width="*" IsReadOnly="True"/>
-        <DataGridTextColumn Header="Когда" Binding="{Binding WhenText}" Width="120" IsReadOnly="True"/>
-        <DataGridTextColumn Header="Где" Binding="{Binding ScopeText}" Width="150" IsReadOnly="True"/>
-        <DataGridTextColumn Header="Название" Binding="{Binding Name}" Width="180" IsReadOnly="True"/>
-      </DataGrid.Columns>
-    </DataGrid>
-
-    <!-- footer -->
-    <TextBlock Grid.Row="3" x:Name="Hint" Style="{StaticResource Caption}" Margin="2,10,0,0"
-               Text="Изменения применяются сразу — движок перечитывает настройки сам."/>
-  </Grid>
+  </DockPanel>
 </Window>

@@ -81,10 +81,34 @@ namespace MyHotkey
             Action = new RuleAction();
         }
 
-        /// <summary>Shown in the list; recomputed on every refresh.</summary>
-        public string ActionSummary { get { return Action.Summary(); } }
-        public string ScopeText { get { return ScopeSummary(); } }
-        public string WhenText { get { return OnRelease ? "при отпускании" : "при нажатии"; } }
+        /// <summary>Two-line caption for the rule list.</summary>
+        public string Title
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(Name)) return Name;
+                if (!string.IsNullOrEmpty(Trigger)) return Trigger;
+                return "Новое правило";
+            }
+        }
+
+        public string Subtitle
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Trigger)) return "сочетание ещё не записано";
+                string s = Trigger + "  →  " + Action.Summary();
+                if (!string.IsNullOrEmpty(App)) s += "  ·  " + ScopeSummary();
+                return s;
+            }
+        }
+
+        /// <summary>Refreshes every binding on this rule (empty name = all).</summary>
+        public void NotifyChanged()
+        {
+            var h = PropertyChanged;
+            if (h != null) h(this, new PropertyChangedEventArgs(""));
+        }
 
         public string ScopeSummary()
         {
@@ -191,11 +215,31 @@ namespace MyHotkey
             return rules;
         }
 
+        /// <summary>
+        /// A rule the engine could act on. With live-apply there is always a
+        /// moment when a rule exists but is half-filled - no trigger recorded
+        /// yet, a combo with no keys. Writing it would make the whole config
+        /// invalid and the engine would reject the file, so such rules live
+        /// only in the window until they are finished.
+        /// </summary>
+        public static bool IsComplete(Rule r)
+        {
+            if (string.IsNullOrWhiteSpace(r.Trigger)) return false;
+            switch (r.Action.Kind)
+            {
+                case ActionKind.Combo:  return r.Action.Keys.Count > 0;
+                case ActionKind.Launch: return !string.IsNullOrWhiteSpace(r.Action.Path);
+                default: return true;
+            }
+        }
+
         public static void Save(List<Rule> rules)
         {
             var list = new List<object>();
             foreach (var r in rules)
             {
+                if (!IsComplete(r)) continue;
+
                 var o = new Dictionary<string, object>();
                 o["id"] = r.Id;
                 if (!string.IsNullOrEmpty(r.Name)) o["name"] = r.Name;

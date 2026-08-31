@@ -6,7 +6,7 @@ using System.Text;
 
 namespace MyHotkey
 {
-    public enum ActionKind { Combo, Text, Launch, Layout, Block }
+    public enum ActionKind { Combo, Text, Launch, Layout, Block, Scold }
 
     public class RuleAction
     {
@@ -38,6 +38,11 @@ namespace MyHotkey
                     return string.IsNullOrEmpty(Args) ? Path : Path + " " + Args;
                 case ActionKind.Layout:
                     return LayoutBackwards ? "раскладка назад" : "раскладка вперёд";
+                case ActionKind.Scold:
+                    if (string.IsNullOrEmpty(Text)) return "ретро-алерт";
+                    var msg = Text.Replace("\r", "").Replace("\n", " ");
+                    return "ретро-алерт: «" +
+                           (msg.Length > 30 ? msg.Substring(0, 30) + "…" : msg) + "»";
                 default:
                     return "проглотить клавишу";
             }
@@ -202,6 +207,10 @@ namespace MyHotkey
                     case "none":
                         r.Action.Kind = ActionKind.Block;
                         break;
+                    case "scold":
+                        r.Action.Kind = ActionKind.Scold;
+                        r.Action.Text = Json.Str(a, "message", "");
+                        break;
                     default:
                         r.Action.Kind = ActionKind.Combo;
                         var keys = Json.Arr(a, "keys");
@@ -266,6 +275,10 @@ namespace MyHotkey
                         break;
                     case ActionKind.Block:
                         a["type"] = "block";
+                        break;
+                    case ActionKind.Scold:
+                        a["type"] = "scold";
+                        if (!string.IsNullOrEmpty(r.Action.Text)) a["message"] = r.Action.Text;
                         break;
                     default:
                         a["type"] = "combo";

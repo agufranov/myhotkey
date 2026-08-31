@@ -116,6 +116,7 @@
               <ComboBoxItem Content="Запустить программу"/>
               <ComboBoxItem Content="Переключить раскладку"/>
               <ComboBoxItem Content="Проглотить клавишу"/>
+              <ComboBoxItem Content="Отругать ретро-алертом"/>
             </ComboBox>
 
             <!-- combo -->
@@ -173,6 +174,19 @@
                        TextWrapping="Wrap"
                        Foreground="{x:Static SystemColors.GrayTextBrush}"
                        Text="Клавиша будет проглочена и не дойдёт ни до одного приложения. Так отключают, например, Insert или CapsLock."/>
+
+            <!-- scold -->
+            <StackPanel x:Name="ScoldPanel" Margin="0,0,0,14" Visibility="Collapsed">
+              <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}"
+                         Text="Тренажёр привычки: сочетание глотается, а на экране появляется ошибка в духе Windows 98 — чтобы отучить руку от старого сочетания."/>
+              <TextBlock Text="Текст сообщения" FontSize="11"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>
+              <TextBox x:Name="ScoldMessageBox" TextChanged="Editor_Changed"/>
+              <TextBlock FontSize="11" Margin="0,4,0,0"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}"
+                         Text="Пусто — стандартное «Эта комбинация переназначена!»"/>
+            </StackPanel>
 
             <TextBlock Text="Где работает" FontSize="11"
                        Foreground="{x:Static SystemColors.GrayTextBrush}" Margin="0,0,0,4"/>

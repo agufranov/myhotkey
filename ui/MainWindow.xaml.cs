@@ -210,7 +210,8 @@ namespace MyHotkey
             ActionKindBox.SelectedIndex = (int)r.Action.Kind;
             ActionKeysText.Text = r.Action.Keys.Count > 0
                 ? string.Join(", ", r.Action.Keys) : "Нажмите, чтобы записать";
-            TextBoxValue.Text = r.Action.Text;
+            TextBoxValue.Text = r.Action.Kind == ActionKind.Scold ? "" : r.Action.Text;
+            ScoldMessageBox.Text = r.Action.Kind == ActionKind.Scold ? r.Action.Text : "";
             PathBox.Text = r.Action.Path;
             ArgsBox.Text = r.Action.Args;
             LayoutPrev.IsChecked = r.Action.LayoutBackwards;
@@ -242,7 +243,8 @@ namespace MyHotkey
 
             r.OnRelease = OnRelease.IsChecked == true;
             r.Action.Kind = (ActionKind)Math.Max(0, ActionKindBox.SelectedIndex);
-            r.Action.Text = TextBoxValue.Text;
+            r.Action.Text = r.Action.Kind == ActionKind.Scold
+                ? ScoldMessageBox.Text : TextBoxValue.Text;
             r.Action.Path = PathBox.Text.Trim();
             r.Action.Args = ArgsBox.Text.Trim();
             r.Action.LayoutBackwards = LayoutPrev.IsChecked == true;
@@ -267,6 +269,7 @@ namespace MyHotkey
             LaunchPanel.Visibility = kind == ActionKind.Launch ? Visibility.Visible : Visibility.Collapsed;
             LayoutPanel.Visibility = kind == ActionKind.Layout ? Visibility.Visible : Visibility.Collapsed;
             BlockPanel.Visibility  = kind == ActionKind.Block  ? Visibility.Visible : Visibility.Collapsed;
+            ScoldPanel.Visibility  = kind == ActionKind.Scold  ? Visibility.Visible : Visibility.Collapsed;
         }
 
         void Browse_Click(object sender, RoutedEventArgs e)

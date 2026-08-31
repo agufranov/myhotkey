@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set "SRC=engine\main.c engine\hook.c engine\action.c engine\keys.c engine\config.c engine\json.c engine\ipc.c"
+set "SRC=engine\main.c engine\hook.c engine\action.c engine\keys.c engine\config.c engine\json.c engine\ipc.c engine\scold.c"
 set "OUT=build\myhotkey-engine.exe"
 if not exist build mkdir build
 
@@ -26,7 +26,7 @@ rem QueryFullProcessImageNameW, which mingw hides at its older default.
 gcc -O2 -Wall -Wextra -municode -mwindows ^
     -DUNICODE -D_UNICODE -D_WIN32_WINNT=0x0601 -D_WIN32_IE=0x0600 ^
     -o "%OUT%" %SRC% build\icon.o ^
-    -luser32 -lshell32 -lole32 -ladvapi32
+    -luser32 -lshell32 -lole32 -ladvapi32 -lgdi32 -lwinmm
 if errorlevel 1 (echo [build] FAILED & exit /b 1)
 goto :done
 
@@ -49,7 +49,7 @@ if errorlevel 1 (echo [build] FAILED on the icon resource & exit /b 1)
 
 cl /nologo /W4 /O2 /MT /GS- /DUNICODE /D_UNICODE /D_CRT_SECURE_NO_WARNINGS ^
    /Fobuild\ /Fe%OUT% %SRC% build\icon.res ^
-   /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib advapi32.lib ole32.lib
+   /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib advapi32.lib ole32.lib gdi32.lib winmm.lib
 if errorlevel 1 (echo [build] FAILED & exit /b 1)
 
 :done

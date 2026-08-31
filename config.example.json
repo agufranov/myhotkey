@@ -47,6 +47,13 @@
       "action": { "type": "launch", "path": "wt.exe" }
     },
     {
+      "id": "scold-alt-left",
+      "name": "Отучаемся от Alt+Left",
+      "enabled": false,
+      "trigger": "Alt+Left",
+      "action": { "type": "scold", "message": "Назад — это Alt+S!" }
+    },
+    {
       "id": "kill-insert",
       "name": "Insert больше не переключает режим замены",
       "enabled": false,

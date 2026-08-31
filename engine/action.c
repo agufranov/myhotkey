@@ -134,5 +134,8 @@ void mh_action_run(const Action *a, UINT held) {
     case ACT_LAYOUT:
         switch_layout(a->layoutDelta);
         break;
+    case ACT_SCOLD:
+        mh_scold_show(a->text);
+        break;
     }
 }

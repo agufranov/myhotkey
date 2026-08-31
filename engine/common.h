@@ -57,14 +57,15 @@ typedef enum {
     ACT_COMBO,      /* send a sequence of chords */
     ACT_TEXT,       /* type a string */
     ACT_LAUNCH,     /* start a program or open a URL */
-    ACT_LAYOUT      /* switch keyboard layout directly, no key faking */
+    ACT_LAYOUT,     /* switch keyboard layout directly, no key faking */
+    ACT_SCOLD       /* swallow the key and show a retro error box */
 } ActionType;
 
 typedef struct {
     ActionType type;
     MhChord    steps[MH_MAX_STEPS];
     int        stepCount;
-    wchar_t   *text;        /* ACT_TEXT */
+    wchar_t   *text;        /* ACT_TEXT; ACT_SCOLD message, may be empty */
     wchar_t   *path;        /* ACT_LAUNCH */
     wchar_t   *args;        /* ACT_LAUNCH */
     int        layoutDelta; /* ACT_LAYOUT: +1 next, -1 previous */
@@ -102,6 +103,9 @@ int         mh_chord_matches(const MhChord *c, UINT held);
 /* action.c */
 void mh_action_run(const Action *a, UINT held);
 void mh_send_chord(const MhChord *c, UINT held);
+
+/* scold.c */
+void mh_scold_show(const wchar_t *message);
 
 /* config.c */
 int  mh_config_load(const wchar_t *path, RuleSet *out, char *err, size_t errCap);

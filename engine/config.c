@@ -97,6 +97,11 @@ static int parse_action(const Json *jact, Action *a, char *err, size_t errCap, i
         a->layoutDelta = (strcmp(dir, "prev") == 0) ? -1 : 1;
         return 1;
     }
+    if (strcmp(type, "scold") == 0) {
+        a->type = ACT_SCOLD;
+        a->text = dup_utf8(json_str(json_get(jact, "message"), ""));
+        return 1;
+    }
     if (strcmp(type, "block") == 0 || strcmp(type, "none") == 0) {
         a->type = ACT_NONE;
         return 1;

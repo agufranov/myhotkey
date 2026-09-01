@@ -198,6 +198,28 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
 
+    case MH_WM_SCOLD: {
+        /* Name both halves. "This is wrong" teaches nothing; "Alt+Left is now
+           Alt+A" is the whole point of the alert. */
+        int index = (int)wp;
+        const Rule *r;
+        char oldTxt[64], newTxt[64];
+        wchar_t oldW[64], newW[64], msg[256];
+
+        if (index < 0 || index >= g_rules.count) return 0;
+        r = &g_rules.rules[index];
+        if (r->action.type != ACT_COMBO || r->action.stepCount != 1) return 0;
+        if (!mh_format_chord(&r->action.steps[0], oldTxt, sizeof(oldTxt))) return 0;
+        if (!mh_format_chord(&r->trigger, newTxt, sizeof(newTxt))) return 0;
+
+        MultiByteToWideChar(CP_UTF8, 0, oldTxt, -1, oldW, 64);
+        MultiByteToWideChar(CP_UTF8, 0, newTxt, -1, newW, 64);
+        _snwprintf(msg, 255, L"%s переназначено!\nТеперь это %s.", oldW, newW);
+        msg[255] = 0;
+        mh_scold_show(msg);
+        return 0;
+    }
+
     case MH_WM_RELOAD:
         reload_config(1);
         return 0;

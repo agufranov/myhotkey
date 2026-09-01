@@ -26,6 +26,10 @@ static volatile LONG g_capture;
 
 static UINT    g_held;                 /* MH_HELD_* bits */
 static short   g_swallowed[256];       /* vk -> rule index, or -1 */
+static char    g_scolded[256];         /* vk -> swallowed as an old shortcut */
+static int     g_tapDirty;             /* something happened since the first
+                                          modifier went down, so the release
+                                          that follows is not a bare tap */
 static wchar_t g_fgExe[64];            /* cached foreground process name */
 
 /* ------------------------------------------------------- foreground app --- */
@@ -67,6 +71,7 @@ static void resync_held(void) {
     const MhModGroup *g = mh_mod_groups();
     int i;
     g_held = 0;
+    g_tapDirty = 1;   /* whatever happened while the hook was off is unknown */
     for (i = 0; i < MH_GROUP_COUNT; i++) {
         if (GetAsyncKeyState((int)g[i].vkL) & 0x8000) g_held |= g[i].heldL;
         if (GetAsyncKeyState((int)g[i].vkR) & 0x8000) g_held |= g[i].heldR;
@@ -79,6 +84,15 @@ static int app_matches(const Rule *r) {
     return r->whenAppIsExclude;
 }
 
+/* The shortcut a rule replaces, which is the single chord it sends. Only a
+   one-chord combo has an "old shortcut" worth naming: a multi-step macro
+   stands in for a sequence, not for a combination anybody used to press. */
+static const MhChord *scold_target(const Rule *r) {
+    if (!r->enabled || !r->scold) return NULL;
+    if (r->action.type != ACT_COMBO || r->action.stepCount != 1) return NULL;
+    return &r->action.steps[0];
+}
+
 static int find_rule(UINT vk) {
     int i;
     if (!g_rules) return -1;
@@ -87,6 +101,44 @@ static int find_rule(UINT vk) {
         if (!r->enabled) continue;
         if (!mh_chord_key_matches(&r->trigger, vk)) continue;
         if (!mh_chord_matches(&r->trigger, g_held)) continue;
+        if (!app_matches(r)) continue;
+        return i;
+    }
+    return -1;
+}
+
+/* The old shortcut was pressed and can be taken away outright: it ends in a
+   real key, so the decision is unambiguous the moment that key goes down. */
+static int find_scold_key(UINT vk) {
+    int i;
+    if (!g_rules || !g_rules->scoldOldShortcuts) return -1;
+    for (i = 0; i < g_rules->count; i++) {
+        const Rule *r = &g_rules->rules[i];
+        const MhChord *c = scold_target(r);
+        if (!c || !c->vk) continue;
+        if (!mh_chord_key_matches(c, vk)) continue;
+        if (!mh_chord_matches(c, g_held)) continue;
+        if (!app_matches(r)) continue;
+        return i;
+    }
+    return -1;
+}
+
+/* A target of modifiers alone - Ctrl+Shift and its kind - cannot be swallowed.
+   Swallowing is decided at key-down, and at that moment there is no way to
+   know whether this is a bare tap or the start of Ctrl+Shift+C; taking the
+   Ctrl away would break every shortcut on the keyboard. So such a target is
+   recognised on release instead, and only as a tap: the exact set went down
+   and came back up with nothing in between. The old shortcut still fires -
+   the user just gets told about it. */
+static int find_scold_tap(void) {
+    int i;
+    if (!g_rules || !g_rules->scoldOldShortcuts) return -1;
+    for (i = 0; i < g_rules->count; i++) {
+        const Rule *r = &g_rules->rules[i];
+        const MhChord *c = scold_target(r);
+        if (!c || c->vk) continue;
+        if (!mh_chord_matches(c, g_held)) continue;
         if (!app_matches(r)) continue;
         return i;
     }
@@ -132,19 +184,38 @@ static LRESULT CALLBACK keyboard_proc(int code, WPARAM wParam, LPARAM lParam) {
     }
 
     if (down) {
-        /* Auto-repeat of an already swallowed key: keep swallowing it. */
+        /* Auto-repeat of an already swallowed key: keep swallowing it, and in
+           the scold case do not nag again - one alert per press is plenty. */
         if (g_swallowed[vk & 0xFF] >= 0) return 1;
+        if (g_scolded[vk & 0xFF]) return 1;
 
         rule = find_rule(vk);
         if (rule >= 0) {
             g_swallowed[vk & 0xFF] = (short)rule;
+            g_tapDirty = 1;
             if (!g_rules->rules[rule].onRelease && g_target)
                 PostMessageW(g_target, MH_WM_RUN_ACTION, (WPARAM)rule, (LPARAM)g_held);
             /* Deliberately not recorded in g_held: a modifier consumed by a
                rule is that rule's trigger, not a modifier for the next key. */
             return 1;
         }
-        if (heldBit) g_held |= heldBit;
+
+        rule = find_scold_key(vk);
+        if (rule >= 0) {
+            g_scolded[vk & 0xFF] = 1;
+            g_tapDirty = 1;
+            if (g_target) PostMessageW(g_target, MH_WM_SCOLD, (WPARAM)rule, 0);
+            return 1;
+        }
+
+        if (heldBit) {
+            /* The first modifier down opens the window in which a bare tap is
+               still possible; anything else closes it. */
+            if (!g_held) g_tapDirty = 0;
+            g_held |= heldBit;
+        } else {
+            g_tapDirty = 1;
+        }
     } else {
         rule = g_swallowed[vk & 0xFF];
         if (rule >= 0) {
@@ -154,7 +225,22 @@ static LRESULT CALLBACK keyboard_proc(int code, WPARAM wParam, LPARAM lParam) {
                 PostMessageW(g_target, MH_WM_RUN_ACTION, (WPARAM)rule, (LPARAM)g_held);
             return 1;   /* swallow the key-up too, so the app sees no orphan */
         }
-        if (heldBit) g_held &= ~heldBit;
+        if (g_scolded[vk & 0xFF]) {
+            g_scolded[vk & 0xFF] = 0;
+            return 1;
+        }
+        if (heldBit) {
+            /* Checked before the bit is cleared, while g_held still describes
+               everything that was down - which is the tap being released. */
+            if (!g_tapDirty) {
+                int tap = find_scold_tap();
+                if (tap >= 0) {
+                    g_tapDirty = 1;   /* the other modifiers must not nag too */
+                    if (g_target) PostMessageW(g_target, MH_WM_SCOLD, (WPARAM)tap, 0);
+                }
+            }
+            g_held &= ~heldBit;
+        }
     }
 
     return CallNextHookEx(g_hook, code, wParam, lParam);
@@ -164,7 +250,7 @@ static LRESULT CALLBACK keyboard_proc(int code, WPARAM wParam, LPARAM lParam) {
 
 int mh_hook_install(void) {
     int i;
-    for (i = 0; i < 256; i++) g_swallowed[i] = -1;
+    for (i = 0; i < 256; i++) { g_swallowed[i] = -1; g_scolded[i] = 0; }
     resync_held();
 
     if (!g_hook)
@@ -203,5 +289,5 @@ void mh_hook_set_capture(int on)   { InterlockedExchange(&g_capture, on ? 1 : 0)
 void mh_hook_set_rules(RuleSet *rs) {
     int i;
     g_rules = rs;
-    for (i = 0; i < 256; i++) g_swallowed[i] = -1;
+    for (i = 0; i < 256; i++) { g_swallowed[i] = -1; g_scolded[i] = 0; }
 }

@@ -129,6 +129,8 @@ int mh_config_load(const wchar_t *path, RuleSet *out, char *err, size_t errCap) 
     free(text);
     if (!root) return 0;
 
+    out->scoldOldShortcuts = json_bool(json_get(root, "scoldOldShortcuts"), 1);
+
     jrules = json_get(root, "rules");
     if (!jrules || jrules->type != JS_ARR) {
         _snprintf(err, errCap - 1, "the config needs a \"rules\" array");
@@ -165,6 +167,10 @@ int mh_config_load(const wchar_t *path, RuleSet *out, char *err, size_t errCap) 
 
         on = json_str(json_get(jr, "on"), "press");
         r->onRelease = (strcmp(on, "release") == 0);
+
+        /* Nagging is on unless the rule opts out - a rule the user just made
+           should train the habit without being switched on separately. */
+        r->scold = json_bool(json_get(jr, "scold"), 1);
 
         app = json_str(json_get(jr, "app"), NULL);
         if (app) {

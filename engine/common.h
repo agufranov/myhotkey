@@ -79,12 +79,14 @@ typedef struct {
     int       onRelease;   /* fire on key-up instead of key-down */
     wchar_t  *whenApp;     /* NULL = everywhere; else foreground exe name */
     int       whenAppIsExclude;
+    int       scold;       /* nag when the shortcut this rule replaces is used */
     Action    action;
 } Rule;
 
 typedef struct {
     Rule rules[MH_MAX_RULES];
     int  count;
+    int  scoldOldShortcuts;   /* master switch for the per-rule nagging */
 } RuleSet;
 
 /* keys.c */
@@ -119,6 +121,7 @@ int  mh_config_write_default(const wchar_t *path);
 #define MH_WM_CAPTURED    (WM_APP + 2)   /* wParam = vk,         lParam = held mask */
 #define MH_WM_RELOAD      (WM_APP + 3)
 #define MH_WM_TRAY        (WM_APP + 4)
+#define MH_WM_SCOLD       (WM_APP + 5)   /* wParam = rule index whose target was pressed */
 
 /* ipc.c - the named pipe the UI talks to */
 int    mh_ipc_start(HWND target);

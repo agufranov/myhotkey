@@ -18,9 +18,15 @@
     <Border DockPanel.Dock="Top" Padding="14,10"
             BorderBrush="{x:Static SystemColors.ActiveBorderBrush}" BorderThickness="0,0,0,1">
       <DockPanel>
-        <CheckBox x:Name="MasterToggle" DockPanel.Dock="Right" VerticalAlignment="Center"
-                  Content="Перехват включён"
-                  Checked="MasterToggle_Changed" Unchecked="MasterToggle_Changed"/>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+          <CheckBox x:Name="ScoldToggle" VerticalAlignment="Center" Margin="0,0,18,0"
+                    Content="Ругать за старые сочетания"
+                    ToolTip="Показывать ретро-ошибку, когда нажато сочетание, которое правило заменило"
+                    Checked="ScoldToggle_Changed" Unchecked="ScoldToggle_Changed"/>
+          <CheckBox x:Name="MasterToggle" VerticalAlignment="Center"
+                    Content="Перехват включён"
+                    Checked="MasterToggle_Changed" Unchecked="MasterToggle_Changed"/>
+        </StackPanel>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
           <TextBlock Text="MyHotkey" FontSize="16" FontWeight="SemiBold"/>
           <TextBlock x:Name="StatusText" Margin="12,4,0,0" FontSize="11"
@@ -128,6 +134,12 @@
               </Button>
               <TextBlock FontSize="11" Foreground="{x:Static SystemColors.GrayTextBrush}"
                          Text="Например Alt+Left — «назад», или Ctrl+Shift — смена раскладки."/>
+              <CheckBox x:Name="RuleScoldBox" Margin="0,10,0,0"
+                        Content="Ругать, если нажато старое сочетание"
+                        Checked="Editor_Changed" Unchecked="Editor_Changed"/>
+              <TextBlock x:Name="RuleScoldHint" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                         Foreground="{x:Static SystemColors.GrayTextBrush}"
+                         Text="Сочетание выше перехватывается и вместо него показывается ретро-ошибка."/>
             </StackPanel>
 
             <!-- text -->

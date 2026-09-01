@@ -63,6 +63,7 @@ namespace MyHotkey
         public bool OnRelease { get; set; }
         public string App { get; set; }          // empty = everywhere
         public bool AppIsExclude { get; set; }
+        public bool Scold { get; set; }          // nag when the old shortcut is used
         public RuleAction Action { get; set; }
 
         public bool Enabled
@@ -83,6 +84,7 @@ namespace MyHotkey
         {
             Id = Guid.NewGuid().ToString("N").Substring(0, 8);
             Name = Trigger = App = "";
+            Scold = true;
             Action = new RuleAction();
         }
 
@@ -157,12 +159,20 @@ namespace MyHotkey
             }
         }
 
+        /// <summary>
+        /// Master switch for nagging about replaced shortcuts. Lives beside the
+        /// rules rather than inside them, so turning it off silences the lot
+        /// without touching what each rule remembers.
+        /// </summary>
+        public static bool ScoldOldShortcuts = true;
+
         public static List<Rule> Load()
         {
             var rules = new List<Rule>();
             if (!File.Exists(Path)) return rules;
 
             var root = Json.Parse(File.ReadAllText(Path, Encoding.UTF8)) as Dictionary<string, object>;
+            ScoldOldShortcuts = Json.Bool(root, "scoldOldShortcuts", true);
             var arr = Json.Arr(root, "rules");
             if (arr == null) return rules;
 
@@ -177,7 +187,8 @@ namespace MyHotkey
                     Name = Json.Str(o, "name", ""),
                     Trigger = Json.Str(o, "trigger", ""),
                     Enabled = Json.Bool(o, "enabled", true),
-                    OnRelease = Json.Str(o, "on", "press") == "release"
+                    OnRelease = Json.Str(o, "on", "press") == "release",
+                    Scold = Json.Bool(o, "scold", true)
                 };
 
                 r.App = Json.Str(o, "app", "");
@@ -256,6 +267,9 @@ namespace MyHotkey
                 o["trigger"] = r.Trigger;
                 if (r.OnRelease) o["on"] = "release";
                 if (!string.IsNullOrEmpty(r.App)) o[r.AppIsExclude ? "notApp" : "app"] = r.App;
+                // Only the exception is written: absent means "nag", which is
+                // what a config from before this feature should also mean.
+                if (!r.Scold) o["scold"] = false;
 
                 var a = new Dictionary<string, object>();
                 switch (r.Action.Kind)
@@ -293,6 +307,7 @@ namespace MyHotkey
 
             var root = new Dictionary<string, object>();
             root["version"] = 1;
+            if (!ScoldOldShortcuts) root["scoldOldShortcuts"] = false;
             root["rules"] = list;
 
             // Write beside the target and swap, so a crash mid-write cannot

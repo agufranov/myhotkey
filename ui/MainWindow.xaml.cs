@@ -43,6 +43,9 @@ namespace MyHotkey
 
             RuleList.ItemsSource = _rules;
             LoadRules();
+            _loading = true;
+            ScoldToggle.IsChecked = Config.ScoldOldShortcuts;
+            _loading = false;
             ConnectToEngine();
 
             _engine.KeyCaptured += OnKeyCaptured;
@@ -192,6 +195,14 @@ namespace MyHotkey
             _engine.SetEnabled(MasterToggle.IsChecked == true);
         }
 
+        void ScoldToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            Config.ScoldOldShortcuts = ScoldToggle.IsChecked == true;
+            UpdateScoldHint();
+            SaveNow();   // a master switch should not sit in the typing debounce
+        }
+
         // ------------------------------------------------------ rule editor --
 
         void RuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -220,7 +231,9 @@ namespace MyHotkey
             AppBox.Text = r.App;
             AppBox.IsEnabled = ScopeBox.SelectedIndex != 0;
             NameBox.Text = r.Name;
+            RuleScoldBox.IsChecked = r.Scold;
             ShowActionPanel();
+            UpdateScoldHint();
             _loadingRule = false;
 
             UpdateHint();
@@ -255,9 +268,60 @@ namespace MyHotkey
             AppBox.IsEnabled = scope > 0;
 
             r.Name = NameBox.Text.Trim();
+            r.Scold = RuleScoldBox.IsChecked == true;
 
             ShowActionPanel();
+            UpdateScoldHint();
             ScheduleSave();
+        }
+
+        /// <summary>
+        /// The line under the per-rule nagging box. It has to be honest about
+        /// what will actually happen: a target of modifiers alone cannot be
+        /// swallowed - the engine decides that at key-down, before it can tell
+        /// a bare tap from the start of Ctrl+Shift+C - so promising to take the
+        /// shortcut away there would be a lie.
+        /// </summary>
+        void UpdateScoldHint()
+        {
+            if (RuleScoldBox == null) return;
+
+            bool global = ScoldToggle.IsChecked == true;
+            RuleScoldBox.IsEnabled = global;
+
+            if (!global)
+            {
+                RuleScoldHint.Text = "Ругань выключена целиком — переключатель в шапке окна.";
+                return;
+            }
+
+            var r = Current;
+            if (r == null || r.Action.Keys.Count == 0)
+            {
+                RuleScoldHint.Text = "Сначала запишите сочетание, которое правило отправляет.";
+                return;
+            }
+            if (r.Action.Keys.Count > 1)
+            {
+                RuleScoldHint.Text = "Несколько аккордов подряд — заменяемого сочетания нет.";
+                return;
+            }
+
+            string chord = r.Action.Keys[0];
+            if (IsModifiersOnly(chord))
+                RuleScoldHint.Text = chord + " — одни модификаторы. Перехватить нельзя, иначе "
+                                   + "сломается Ctrl+C и всё подобное: ошибка покажется, но само "
+                                   + "сочетание сработает.";
+            else
+                RuleScoldHint.Text = chord + " будет перехвачено, вместо него — ретро-ошибка.";
+        }
+
+        static bool IsModifiersOnly(string chord)
+        {
+            if (string.IsNullOrEmpty(chord)) return false;
+            foreach (var part in chord.Split('+'))
+                if (!ModifierOnly.Contains(part.Trim())) return false;
+            return true;
         }
 
         void ShowActionPanel()
@@ -377,6 +441,7 @@ namespace MyHotkey
             {
                 r.Action.Keys = new List<string> { chord };
                 ActionKeysText.Text = chord;
+                UpdateScoldHint();   // the hint names the chord, so it just changed
             }
             ScheduleSave();
             UpdateHint();

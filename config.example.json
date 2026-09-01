@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "scoldOldShortcuts": true,
   "rules": [
     {
       "id": "caps-layout",
@@ -30,6 +31,7 @@
       "enabled": false,
       "trigger": "Alt+D",
       "app": "chrome.exe",
+      "scold": false,
       "action": { "type": "combo", "keys": ["Alt+Right"] }
     },
     {
@@ -47,11 +49,11 @@
       "action": { "type": "launch", "path": "wt.exe" }
     },
     {
-      "id": "scold-alt-left",
-      "name": "Отучаемся от Alt+Left",
+      "id": "scold-f5",
+      "name": "Ругань на сочетание, которое ничем не заменяли",
       "enabled": false,
-      "trigger": "Alt+Left",
-      "action": { "type": "scold", "message": "Назад — это Alt+S!" }
+      "trigger": "F5",
+      "action": { "type": "scold", "message": "Обновление тут не нужно!" }
     },
     {
       "id": "kill-insert",

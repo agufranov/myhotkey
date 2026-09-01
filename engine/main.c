@@ -283,6 +283,47 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 /* --------------------------------------------------------------- main --- */
 
+/* One engine per session. A second launch just tells the first to reload,
+   which is what double-clicking the exe after an edit should do anyway.
+
+   But a held mutex is not proof that an engine is running. A reinstall kills
+   the old engine and starts the new one in the same breath, and the corpse
+   keeps its handles for a moment after taskkill returns - measured at around
+   half a second. Believing the mutex there leaves the machine with no engine
+   at all while the installer reports success, which is exactly what a silent
+   install does. So ask the holder to reload, then check whether it is still
+   there a second later; if it has died, the singleton is ours after all. */
+static HANDLE claim_singleton(void) {
+    int attempt;
+
+    for (attempt = 0; attempt < 40; attempt++) {   /* ~4 s of corpses at most */
+        HANDLE mutex = CreateMutexW(NULL, TRUE, MH_MUTEX_NAME);
+        HWND   existing;
+        HANDLE owner;
+        DWORD  pid = 0, waited;
+
+        if (mutex && GetLastError() != ERROR_ALREADY_EXISTS) return mutex;
+        if (mutex) CloseHandle(mutex);
+
+        /* No window yet: either the holder is on its way out, or it is a
+           twin launched the same instant and has not created it yet. */
+        existing = FindWindowW(MH_CLASS, NULL);
+        if (!existing) { Sleep(100); continue; }
+
+        /* Harmless if it is dying, and instant if it is not. */
+        PostMessageW(existing, MH_WM_RELOAD, 0, 0);
+
+        GetWindowThreadProcessId(existing, &pid);
+        owner = pid ? OpenProcess(SYNCHRONIZE, FALSE, pid) : NULL;
+        if (!owner) return NULL;   /* cannot watch it; assume it is healthy */
+
+        waited = WaitForSingleObject(owner, 1000);
+        CloseHandle(owner);
+        if (waited == WAIT_TIMEOUT) return NULL;   /* still running - it wins */
+    }
+    return NULL;
+}
+
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
     WNDCLASSEXW wc;
     HANDLE mutex;
@@ -290,14 +331,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
 
     (void)prev; (void)cmdline; (void)show;
 
-    /* One engine per session. A second launch just tells the first to reload,
-       which is what double-clicking the exe after an edit should do anyway. */
-    mutex = CreateMutexW(NULL, TRUE, MH_MUTEX_NAME);
-    if (!mutex || GetLastError() == ERROR_ALREADY_EXISTS) {
-        HWND existing = FindWindowW(MH_CLASS, NULL);
-        if (existing) PostMessageW(existing, MH_WM_RELOAD, 0, 0);
-        return 0;
-    }
+    mutex = claim_singleton();
+    if (!mutex) return 0;   /* another engine has it, and it is alive */
 
     memset(&wc, 0, sizeof(wc));
     wc.cbSize        = sizeof(wc);
@@ -311,6 +346,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
     if (!g_hwnd) return 1;
 
     g_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+
+    /* The engine normally runs elevated, started by Task Scheduler with
+       highest privileges so the hook can see keys in elevated windows, and
+       Windows then drops messages posted to it by ordinary processes. The
+       reload a second launch sends is one of those, so let it through. It
+       grants nothing: the same user can already edit config.json, and the
+       engine reloads that on its own the moment the file changes. */
+    ChangeWindowMessageFilterEx(g_hwnd, MH_WM_RELOAD, MSGFLT_ALLOW, NULL);
 
     if (!mh_config_default_path(g_configPath, MAX_PATH)) return 1;
     if (GetFileAttributesW(g_configPath) == INVALID_FILE_ATTRIBUTES)

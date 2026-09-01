@@ -77,6 +77,21 @@ static void tray_notify(const wchar_t *title, const wchar_t *body, DWORD icon) {
 
 /* -------------------------------------------------------------- config --- */
 
+/* Whether any rule could scold right now. The alert sound keeps the audio
+   endpoint awake to stay instant, and there is no reason to pay for that on a
+   config where nothing nags. Mirrors scold_target() in hook.c. */
+static int scolding_possible(const RuleSet *rs) {
+    int i;
+    for (i = 0; i < rs->count; i++) {
+        const Rule *r = &rs->rules[i];
+        if (!r->enabled) continue;
+        if (r->action.type == ACT_SCOLD) return 1;
+        if (rs->scoldOldShortcuts && r->scold &&
+            r->action.type == ACT_COMBO && r->action.stepCount == 1) return 1;
+    }
+    return 0;
+}
+
 static void reload_config(int announceSuccess) {
     /* static: a RuleSet is ~150 KB, too much to put on the stack */
     static RuleSet fresh;
@@ -100,6 +115,7 @@ static void reload_config(int announceSuccess) {
     mh_config_free(&g_rules);
     g_rules = fresh;
     mh_hook_set_rules(&g_rules);
+    mh_sound_set_active(scolding_possible(&g_rules));
 
     /* Enabled ones, not the total: rules ship switched off, so a count of
        everything loaded would claim the app is doing work it is not. */
@@ -301,6 +317,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
         mh_config_write_default(g_configPath);
 
     tray_add();
+    mh_sound_init();
 
     mh_hook_set_target(g_hwnd);
     if (!mh_hook_install()) {
@@ -344,6 +361,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
 
 done:
     mh_ipc_stop();
+    mh_sound_stop();
     mh_hook_remove();
     mh_config_free(&g_rules);
     if (g_configWatch != INVALID_HANDLE_VALUE) FindCloseChangeNotification(g_configWatch);

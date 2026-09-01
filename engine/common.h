@@ -109,6 +109,12 @@ void mh_send_chord(const MhChord *c, UINT held);
 /* scold.c */
 void mh_scold_show(const wchar_t *message);
 
+/* sound.c */
+void mh_sound_init(void);
+void mh_sound_alert(void);
+void mh_sound_set_active(int on);
+void mh_sound_stop(void);
+
 /* config.c */
 int  mh_config_load(const wchar_t *path, RuleSet *out, char *err, size_t errCap);
 void mh_config_free(RuleSet *rs);

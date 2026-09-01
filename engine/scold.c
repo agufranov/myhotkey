@@ -18,7 +18,6 @@
  * or on any click. Runs on the engine thread; the engine's own message loop
  * dispatches its paint and timer, none of which goes near the hook. */
 #include "common.h"
-#include <mmsystem.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -39,20 +38,6 @@ static RECT    g_textRc;   /* client coords, computed when shown */
 static RECT    g_okRc;
 
 static const wchar_t kDefaultMsg[] = L"Эта комбинация переназначена!";
-
-/* The Windows 98 critical stop was chord.wav. It still ships with Windows,
-   so play the real thing; fall back to whatever the current scheme calls a
-   critical stop. */
-static void play_alert(void) {
-    wchar_t win[MAX_PATH], path[MAX_PATH];
-    if (GetWindowsDirectoryW(win, MAX_PATH) &&
-        _snwprintf(path, MAX_PATH - 1, L"%s\\Media\\chord.wav", win) > 0) {
-        path[MAX_PATH - 1] = 0;
-        if (PlaySoundW(path, NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT))
-            return;
-    }
-    PlaySoundW(L"SystemHand", NULL, SND_ALIAS | SND_ASYNC);
-}
 
 /* Navy to sky blue, left to right - the active-caption gradient of Win98. */
 static void paint_title_gradient(HDC dc, const RECT *tb) {
@@ -193,6 +178,10 @@ void mh_scold_show(const wchar_t *message) {
 
     if (!ensure_window()) return;
 
+    /* Sound first: it is one SetEvent, and the ear notices the gap before the
+       eye does. */
+    mh_sound_alert();
+
     _snwprintf(g_msg, 255, L"%s",
                message && message[0] ? message : kDefaultMsg);
     g_msg[255] = 0;
@@ -233,5 +222,4 @@ void mh_scold_show(const wchar_t *message) {
                  SWP_NOACTIVATE | SWP_SHOWWINDOW);
     InvalidateRect(g_wnd, NULL, TRUE);
     SetTimer(g_wnd, 1, SCOLD_TIMEOUT_MS, NULL);
-    play_alert();
 }

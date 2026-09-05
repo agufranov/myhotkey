@@ -70,6 +70,15 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Filename: "{sys}\schtasks.exe"; \
     Parameters: "/create /tn ""{#TaskName}"" /tr ""\""{app}\{#EngineExe}\"""" /sc onlogon /rl highest /f"; \
     Flags: runhidden; Tasks: startup; StatusMsg: "Регистрация автозапуска..."
+; schtasks has no switch for the settings a resident process needs, and its
+; defaults are wrong for one: a 72-hour execution limit, after which the
+; scheduler kills the engine and nothing brings it back until the next logon,
+; plus "do not start on battery" and "stop on battery", which on a laptop mean
+; no hotkeys at all. PowerShell can set them, so fix the task right after
+; creating it.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+    Parameters: "-NoProfile -Command ""Set-ScheduledTask -TaskName '{#TaskName}' -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable) | Out-Null"""; \
+    Flags: runhidden; Tasks: startup
 ; Start it now, not at the next logon. A silent install - which is what winget
 ; and any deployment tool performs - would otherwise report success while
 ; nothing at all happens until the user next signs in. Starting through the

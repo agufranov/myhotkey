@@ -64,6 +64,19 @@ if "%ELEVATED%"=="1" (
     if not errorlevel 1 set "STARTUP=task"
 )
 
+rem schtasks has no switch for the settings that matter to a resident process,
+rem and its defaults are wrong for one: a 72-hour execution limit, after which
+rem the scheduler kills the task - the engine simply vanished on the fourth
+rem day, and nothing restarts it until the next logon - plus "do not start on
+rem battery" and "stop when switching to battery", which on a laptop mean no
+rem hotkeys at all. Fix them right after creation.
+if "!STARTUP!"=="task" (
+    powershell -NoProfile -Command ^
+        "Set-ScheduledTask -TaskName '%TASK%' -Settings (New-ScheduledTaskSettingsSet" ^
+            "-ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries" ^
+            "-StartWhenAvailable) | Out-Null" >nul 2>&1
+)
+
 if "!STARTUP!"=="task" (
     reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v MyHotkey /f >nul 2>&1
 ) else (

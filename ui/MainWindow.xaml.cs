@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -17,6 +20,7 @@ namespace MyHotkey
 
         bool _loading;       // wiring up at startup
         bool _loadingRule;   // populating the editor from a rule
+        volatile bool _closed;   // the reviver below outlives the window otherwise
 
         // Which field the recorder is currently filling, if any.
         enum Target { None, Trigger, ActionKeys }
@@ -49,7 +53,7 @@ namespace MyHotkey
             ConnectToEngine();
 
             _engine.KeyCaptured += OnKeyCaptured;
-            Closed += (s, e) => _engine.Dispose();
+            Closed += (s, e) => { _closed = true; _engine.Dispose(); };
 
             if (_rules.Count > 0) RuleList.SelectedIndex = 0;
             UpdateEditorVisibility();
@@ -157,32 +161,118 @@ namespace MyHotkey
 
         // ---------------------------------------------------------- engine --
 
+        /// <summary>Engine name for the scheduler and for the fallback launch.</summary>
+        const string TaskName  = "MyHotkey";
+        const string EngineExe = "myhotkey-engine.exe";
+
         void ConnectToEngine()
         {
+            if (Attach()) return;   // the normal case: it is already there
+
+            /* This window is only a client of the engine's pipe: without an
+               engine there is nothing to edit and nothing to record. Reporting
+               that and stopping used to leave the user staring at a dead end,
+               having to know about a scheduled task they never set up - so
+               start it instead, and say so while that happens. */
             _loading = true;
-            if (_engine.Connect())
-            {
-                _engine.Disconnected += () => Dispatcher.BeginInvoke(
-                    new Action(() => ShowStatus(false, "движок отключился")));
-                _engine.RequestStatus((enabled, count, hooked) => Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    _loading = true;
-                    MasterToggle.IsChecked = enabled;
-                    _loading = false;
-                    if (hooked)
-                        ShowStatus(true, "движок работает");
-                    else
-                        ShowStatus(false, "движок запущен, но перехват клавиатуры не встал — "
-                                        + "сочетания не работают, движок повторяет попытки");
-                })));
-            }
-            else
-            {
-                MasterToggle.IsChecked = true;
-                MasterToggle.IsEnabled = false;
-                ShowStatus(false, "движок не запущен — сочетания не работают, запись недоступна");
-            }
+            MasterToggle.IsChecked = true;
+            MasterToggle.IsEnabled = false;
             _loading = false;
+            ShowStatus(false, "движок не запущен — запускаю…");
+
+            var reviver = new Thread(Revive) { IsBackground = true, Name = "myhotkey-revive" };
+            reviver.Start();
+        }
+
+        /// <summary>
+        /// Connects and paints the result. Safe off the UI thread: it touches
+        /// the pipe only, and every callback marshals itself back.
+        /// </summary>
+        bool Attach()
+        {
+            if (_closed || !_engine.Connect(500)) return false;
+
+            _engine.Disconnected += () => Dispatcher.BeginInvoke(
+                new Action(() => ShowStatus(false, "движок отключился")));
+            _engine.RequestStatus((enabled, count, hooked) => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _loading = true;
+                MasterToggle.IsChecked = enabled;
+                MasterToggle.IsEnabled = true;
+                _loading = false;
+                ShowStatus(hooked, hooked
+                    ? "движок работает"
+                    : "движок запущен, но перехват клавиатуры не встал — "
+                    + "сочетания не работают, движок повторяет попытки");
+            })));
+            return true;
+        }
+
+        void Revive()
+        {
+            StartEngine();
+
+            /* A cold engine answers in well under a second; the rest of this
+               budget is for a machine busy enough to have lost it in the
+               first place. */
+            for (int i = 0; i < 12 && !_closed; i++)
+            {
+                Thread.Sleep(500);
+                if (Attach()) return;   // Attach paints the status itself
+            }
+
+            if (_closed) return;
+            try
+            {
+                Dispatcher.BeginInvoke(new Action(() => ShowStatus(false,
+                    "движок не запущен и не поднялся — проверьте задачу «" + TaskName
+                    + "» в Планировщике заданий")));
+            }
+            catch (InvalidOperationException) { /* the window closed under us */ }
+        }
+
+        /// <summary>
+        /// Asks the scheduler rather than launching the exe, because the task
+        /// runs the engine with the elevated token it needs: started from here
+        /// it would inherit this window's ordinary rights and its hook would
+        /// silently miss every key pressed in an elevated window. Running
+        /// one's own task raises no UAC prompt - verified from an unelevated
+        /// process. The exe is the fallback for an install that had no rights
+        /// to register a task and used the Run key instead.
+        /// </summary>
+        static void StartEngine()
+        {
+            if (RunToEnd("schtasks.exe", "/run /tn \"" + TaskName + "\"")) return;
+
+            try
+            {
+                var exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EngineExe);
+                if (File.Exists(exe))
+                    Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false });
+            }
+            catch { /* nothing left to try; the caller reports the silence */ }
+        }
+
+        static bool RunToEnd(string file, string args)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(file, args)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using (var p = Process.Start(psi))
+                {
+                    if (p == null) return false;
+                    p.StandardOutput.ReadToEnd();   // draining both keeps it from
+                    p.StandardError.ReadToEnd();    // wedging on a full pipe
+                    return p.WaitForExit(5000) && p.ExitCode == 0;
+                }
+            }
+            catch { return false; }
         }
 
         void ShowStatus(bool ok, string text)

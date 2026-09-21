@@ -164,12 +164,16 @@ namespace MyHotkey
             {
                 _engine.Disconnected += () => Dispatcher.BeginInvoke(
                     new Action(() => ShowStatus(false, "движок отключился")));
-                _engine.RequestStatus((enabled, count) => Dispatcher.BeginInvoke(new Action(() =>
+                _engine.RequestStatus((enabled, count, hooked) => Dispatcher.BeginInvoke(new Action(() =>
                 {
                     _loading = true;
                     MasterToggle.IsChecked = enabled;
                     _loading = false;
-                    ShowStatus(true, "движок работает");
+                    if (hooked)
+                        ShowStatus(true, "движок работает");
+                    else
+                        ShowStatus(false, "движок запущен, но перехват клавиатуры не встал — "
+                                        + "сочетания не работают, движок повторяет попытки");
                 })));
             }
             else

@@ -140,8 +140,11 @@ static void handle(const char *cmd) {
     if (word_is(cmd, "ping", NULL)) {
         reply("pong");
     } else if (word_is(cmd, "status", NULL)) {
-        reply("status enabled=%d rules=%d capture=%d",
-              mh_hook_get_enabled(), mh_engine_rule_count(), mh_engine_capturing());
+        /* hook=0 means the engine is up but remaps nothing, which the settings
+           window must not paint as healthy. */
+        reply("status enabled=%d rules=%d capture=%d hook=%d",
+              mh_hook_get_enabled(), mh_engine_rule_count(), mh_engine_capturing(),
+              mh_hook_alive());
     } else if (word_is(cmd, "reload", NULL)) {
         PostMessageW(g_target, MH_WM_RELOAD, 0, 0);
         reply("ok");

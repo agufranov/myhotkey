@@ -15,6 +15,12 @@
 /* A recorder left armed swallows the whole keyboard, so it gets a deadline. */
 #define CAPTURE_TIMEOUT_MS 60000
 
+/* While the hook is up, re-arming it is mere insurance against Windows having
+   evicted a slow one, and once a minute is plenty. While it is down the engine
+   is dead weight - nothing is remapped at all - so then it retries hard. */
+#define HOOK_POLL_UP_MS   60000
+#define HOOK_POLL_DOWN_MS  2000
+
 #define ID_TRAY_ENABLED 100
 #define ID_TRAY_EDIT    101
 #define ID_TRAY_RELOAD  102
@@ -73,6 +79,12 @@ static void tray_notify(const wchar_t *title, const wchar_t *body, DWORD icon) {
     _snwprintf(n.szInfoTitle, 63, L"%s", title);
     _snwprintf(n.szInfo, 255, L"%s", body);
     Shell_NotifyIconW(NIM_MODIFY, &n);
+}
+
+/* Same timer either way: SetTimer on a live id just resets the interval. */
+static void arm_hook_timer(void) {
+    SetTimer(g_hwnd, TIMER_HOOK,
+             mh_hook_alive() ? HOOK_POLL_UP_MS : HOOK_POLL_DOWN_MS, NULL);
 }
 
 /* -------------------------------------------------------------- config --- */
@@ -269,7 +281,11 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else if (wp == TIMER_HOOK) {
             /* Windows drops a hook that once ran too slowly and tells nobody.
                Re-arming it costs microseconds, so just do it periodically. */
-            mh_hook_refresh();
+            int was = mh_hook_alive();
+            if (mh_hook_refresh() && !was)
+                tray_notify(MH_APP_NAME, L"Перехват клавиатуры встал, "
+                                         L"сочетания снова работают.", NIIF_INFO);
+            arm_hook_timer();
         }
         return 0;
 
@@ -363,17 +379,25 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show) {
     mh_sound_init();
 
     mh_hook_set_target(g_hwnd);
-    if (!mh_hook_install()) {
-        tray_notify(L"MyHotkey", L"Не удалось установить перехват клавиатуры.", NIIF_ERROR);
-        return 1;
-    }
+
+    /* A hook that will not install is not a reason to die. The engine is
+       started by a logon trigger and by nothing else, so quitting here means
+       staying dead until the next logon - and a machine that hibernates
+       instead of shutting down may not see one for days. Windows refuses the
+       hook while a session is in transition (a hibernate resume fires the
+       trigger into exactly that window), and takes it a moment later. So say
+       so and stay up: the watchdog below retries until it takes. */
+    if (!mh_hook_install())
+        tray_notify(MH_APP_NAME, L"Перехват клавиатуры не встал. Продолжаю "
+                                 L"попытки — сочетания заработают сами.",
+                    NIIF_ERROR);
 
     reload_config(0);
     watch_config();
     if (!mh_ipc_start(g_hwnd))
         tray_notify(MH_APP_NAME, L"Канал управления не открылся — окно настроек "
                                  L"не сможет подключиться.", NIIF_WARNING);
-    SetTimer(g_hwnd, TIMER_HOOK, 60000, NULL);
+    arm_hook_timer();
 
     for (;;) {
         HANDLE waits[2];

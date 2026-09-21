@@ -102,12 +102,15 @@ namespace MyHotkey
         public void StartCapture()      { Send("capture on"); }
         public void StopCapture()       { Send("capture off"); }
 
-        /// <summary>Asks for "status enabled=1 rules=2 capture=0".</summary>
-        public void RequestStatus(Action<bool, int> onStatus)
+        /// <summary>Asks for "status enabled=1 rules=2 capture=0 hook=1".</summary>
+        public void RequestStatus(Action<bool, int, bool> onStatus)
         {
             Send("status", line =>
             {
                 bool enabled = line.Contains("enabled=1");
+                /* Absence means an engine too old to report it, and those
+                   never outlive a lost hook - so absence is good news. */
+                bool hooked = !line.Contains("hook=0");
                 int rules = 0;
                 int at = line.IndexOf("rules=", StringComparison.Ordinal);
                 if (at >= 0)
@@ -116,7 +119,7 @@ namespace MyHotkey
                     while (end < line.Length && char.IsDigit(line[end])) end++;
                     int.TryParse(line.Substring(at + 6, end - at - 6), out rules);
                 }
-                onStatus(enabled, rules);
+                onStatus(enabled, rules, hooked);
             });
         }
 

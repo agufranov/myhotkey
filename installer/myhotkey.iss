@@ -76,8 +76,20 @@ Filename: "{sys}\schtasks.exe"; \
 ; plus "do not start on battery" and "stop on battery", which on a laptop mean
 ; no hotkeys at all. PowerShell can set them, so fix the task right after
 ; creating it.
+;
+; The same call adds a second trigger, because "until the next logon" is not a
+; recovery plan: whatever kills the engine, a machine that hibernates rather
+; than shuts down may not see another logon for days, and the user has no
+; hotkeys and no hint why in the meantime.
+;
+; It has to be a trigger of its own, not a repeat hung on the logon one: a
+; repetition belongs to the trigger instance that started it, so one added to a
+; logon that already fired lies dormant until the next logon - exactly the case
+; being fixed. A one-off with a start boundary in the past repeats from the
+; moment it is registered. While the engine is alive it costs nothing: the task
+; is Running, and its default policy is to ignore a new instance.
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
-    Parameters: "-NoProfile -Command ""Set-ScheduledTask -TaskName '{#TaskName}' -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable) | Out-Null"""; \
+    Parameters: "-NoProfile -Command ""$logon = New-ScheduledTaskTrigger -AtLogOn; $watch = New-ScheduledTaskTrigger -Once -At '2000-01-01T00:00:00' -RepetitionInterval (New-TimeSpan -Minutes 5); Set-ScheduledTask -TaskName '{#TaskName}' -Trigger $logon,$watch -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable) | Out-Null"""; \
     Flags: runhidden; Tasks: startup
 ; Start it now, not at the next logon. A silent install - which is what winget
 ; and any deployment tool performs - would otherwise report success while

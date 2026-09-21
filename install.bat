@@ -70,11 +70,27 @@ rem the scheduler kills the task - the engine simply vanished on the fourth
 rem day, and nothing restarts it until the next logon - plus "do not start on
 rem battery" and "stop when switching to battery", which on a laptop mean no
 rem hotkeys at all. Fix them right after creation.
+rem
+rem The same call adds a second trigger, because "until the next logon" is not
+rem a recovery plan. Whatever kills the engine - a hook Windows refused during
+rem a session transition, a crash, a stray taskkill - a machine that hibernates
+rem instead of shutting down may not see another logon for days, and the user
+rem meanwhile has no hotkeys and no hint why.
+rem
+rem It has to be a trigger of its own, not a repeat hung on the logon one: a
+rem repetition belongs to the trigger instance that started it, so one added to
+rem a logon that already fired lies dormant until the next logon - exactly the
+rem case being fixed. A one-off with a start boundary in the past repeats from
+rem the moment it is registered. While the engine is alive it costs nothing:
+rem the task is Running, and its default policy is to ignore a new instance.
 if "!STARTUP!"=="task" (
     powershell -NoProfile -Command ^
-        "Set-ScheduledTask -TaskName '%TASK%' -Settings (New-ScheduledTaskSettingsSet" ^
-            "-ExecutionTimeLimit 0 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries" ^
-            "-StartWhenAvailable) | Out-Null" >nul 2>&1
+        "$logon = New-ScheduledTaskTrigger -AtLogOn;" ^
+        "$watch = New-ScheduledTaskTrigger -Once -At '2000-01-01T00:00:00'" ^
+            "-RepetitionInterval (New-TimeSpan -Minutes 5);" ^
+        "Set-ScheduledTask -TaskName '%TASK%' -Trigger $logon,$watch -Settings" ^
+            "(New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -AllowStartIfOnBatteries" ^
+            "-DontStopIfGoingOnBatteries -StartWhenAvailable) | Out-Null" >nul 2>&1
 )
 
 if "!STARTUP!"=="task" (
